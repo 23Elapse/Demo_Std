@@ -1,6 +1,3 @@
-#include "sys.h"
-#include "usart.h"
-#include <string.h> // 用于 memcpy 和 memset
 #include "pch.h"
 /* 重定义fputc函数, printf函数最终会通过调用fputc输出字符串到串口 */
 int fputc(int ch, FILE *f)
@@ -141,7 +138,7 @@ USART_Config usart1_config = {
     .RCC_APB2Periph = RCC_APB2Periph_USART1,
     .RCC_APB2Periph_GPIO = RCC_AHB1Periph_GPIOA,
     .IRQChannel = USART1_IRQn,
-    .BaudRate = 9600
+    .BaudRate = 115200,
 };
 
 // 初始化 USART1

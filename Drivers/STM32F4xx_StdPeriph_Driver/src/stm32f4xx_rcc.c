@@ -2074,7 +2074,7 @@ void RCC_TIMCLKPresConfig(uint32_t RCC_TIMCLKPrescaler)
   *            @arg RCC_AHB1Periph_GPIOE:       GPIOE clock
   *            @arg RCC_AHB1Periph_GPIOF:       GPIOF clock
   *            @arg RCC_AHB1Periph_GPIOG:       GPIOG clock
-  *            @arg RCC_AHB1Periph_GPIOG:       GPIOG clock
+  *            @arg RCC_AHB1Periph_GPIOH:       GPIOH clock
   *            @arg RCC_AHB1Periph_GPIOI:       GPIOI clock
   *            @arg RCC_AHB1Periph_GPIOJ:       GPIOJ clock (STM32F42xxx/43xxx devices) 
   *            @arg RCC_AHB1Periph_GPIOK:       GPIOK clock (STM32F42xxx/43xxx devices)  

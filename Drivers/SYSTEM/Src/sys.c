@@ -149,58 +149,105 @@ uint8_t SystemClock_Config(uint32_t plln, uint32_t pllm, uint32_t pllp, uint32_t
     return 0; // 成功
 }
  
+ /*
+ * 使用HSE时，设置系统时钟的步骤
+ * 1、开启HSE ，并等待 HSE 稳定
+ * 2、设置 AHB、APB2、APB1的预分频因子
+ * 3、设置PLL的时钟来源
+ *    设置VCO输入时钟 分频因子        m
+ *    设置VCO输出时钟 倍频因子        n
+ *    设置PLLCLK时钟分频因子          p
+ *    设置OTG FS,SDIO,RNG时钟分频因子 q
+ * 4、开启PLL，并等待PLL稳定
+ * 5、把PLLCK切换为系统时钟SYSCLK
+ * 6、读取时钟切换状态位，确保PLLCLK被选为系统时钟
+ */
+
+/*
+ * m: VCO输入时钟 分频因子，取值2~63
+ * n: VCO输出时钟 倍频因子，取值192~432
+ * p: PLLCLK时钟分频因子  ，取值2，4，6，8
+ * q: OTG FS,SDIO,RNG时钟分频因子，取值4~15
+ * 函数调用举例，使用HSE设置时钟
+ * SYSCLK=HCLK=180M,PCLK2=HCLK/2=90M,PCLK1=HCLK/4=45M
+ * HSE_SetSysClock(25, 360, 2, 7);
+ * HSE作为时钟来源，经过PLL倍频作为系统时钟，这是通常的做法
  
-//uint8_t sys_stm32_clock_init(uint32_t plln, uint32_t pllm, uint32_t pllp, uint32_t pllq)
-//{
-//    HAL_StatusTypeDef ret = HAL_OK;
-//    RCC_ClkInitTypeDef rcc_clk_init = {0};
-//    RCC_OscInitTypeDef rcc_osc_init = {0};
-//    
-//    __HAL_RCC_PWR_CLK_ENABLE();                                     /* 使能PWR时钟 */
-//    
-//    /* 下面这个设置用来设置调压器输出电压级别，以便在器件未以最大频率工作时使性能与功耗实现平衡 */
-//    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);  /* 调压器输出电压级别选择：级别1模式 */
+ * 系统时钟超频到216M爽一下
+ * HSE_SetSysClock(25, 432, 2, 9);
+ */
+void HSE_SetSysClock(uint32_t m, uint32_t n, uint32_t p, uint32_t q)	
+{
+  __IO uint32_t HSEStartUpStatus = 0;
+  
+  // 使能HSE，开启外部晶振，野火F429使用 HSE=25M
+  RCC_HSEConfig(RCC_HSE_ON);
+	
+  // 等待HSE启动稳定
+	HSEStartUpStatus = RCC_WaitForHSEStartUp();
 
-//    /* 使能HSE，并选择HSE作为PLL时钟源，配置PLL1，开启USB时钟 */
-//    rcc_osc_init.OscillatorType = RCC_OSCILLATORTYPE_HSE;           /* 时钟源为HSE */
-//    rcc_osc_init.HSEState = RCC_HSE_ON;                             /* 打开HSE */
-//    rcc_osc_init.PLL.PLLState = RCC_PLL_ON;                         /* 打开PLL */
-//    rcc_osc_init.PLL.PLLSource = RCC_PLLSOURCE_HSE;                 /* PLL时钟源选择HSE */
-//    rcc_osc_init.PLL.PLLN = plln;
-//    rcc_osc_init.PLL.PLLM = pllm;
-//    rcc_osc_init.PLL.PLLP = pllp;
-//    rcc_osc_init.PLL.PLLQ = pllq;
-//    ret = HAL_RCC_OscConfig(&rcc_osc_init);                         /* 初始化RCC */
-//    if (ret != HAL_OK)
-//    {
-//        return 1;                                                   /* 时钟初始化失败，可以在这里加入自己的处理 */
-//    }
+  if (HSEStartUpStatus == SUCCESS)
+  {
+    // 调压器电压输出级别配置为1，以便在器件为最大频率
+		// 工作时使性能和功耗实现平衡
+    RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+    PWR->CR |= PWR_CR_VOS;
+		
+		// HCLK = SYSCLK / 1
+		RCC_HCLKConfig(RCC_SYSCLK_Div1);
+		
+		// PCLK2 = HCLK / 2
+		RCC_PCLK2Config(RCC_HCLK_Div2);
+		
+		// PCLK1 = HCLK / 4
+		RCC_PCLK1Config(RCC_HCLK_Div4);
+		
+    // 如果要超频就得在这里下手啦
+		// 设置PLL来源时钟，设置VCO分频因子m，设置VCO倍频因子n，
+		//  设置系统时钟分频因子p，设置OTG FS,SDIO,RNG分频因子q
+		RCC_PLLConfig(RCC_PLLSource_HSE, m, n, p, q);
+		
+		// 使能PLL
+		RCC_PLLCmd(ENABLE);
+  
+	  // 等待 PLL稳定
+    while (RCC_GetFlagStatus(RCC_FLAG_PLLRDY) == RESET)
+    {
+    }   
 
-//    ret = HAL_PWREx_EnableOverDrive();                              /* 开启Over-Driver功能 */
-//    if (ret != HAL_OK)
-//    {
-//        return 1;
-//    }
+/*-----------------------------------------------------*/
+    //开启 OVER-RIDE模式，以能达到更高频率
+    PWR->CR |= PWR_CR_ODEN;
+    while((PWR->CSR & PWR_CSR_ODRDY) == 0)
+    {
+    }
+    PWR->CR |= PWR_CR_ODSWEN;
+    while((PWR->CSR & PWR_CSR_ODSWRDY) == 0)
+    {
+    }      
+    // 配置FLASH预取指,指令缓存,数据缓存和等待状态
+    FLASH->ACR = FLASH_ACR_PRFTEN 
+		            | FLASH_ACR_ICEN 
+		            | FLASH_ACR_DCEN 
+		            | FLASH_ACR_LATENCY_5WS;
+/*-----------------------------------------------------*/
+		
+		// 当PLL稳定之后，把PLL时钟切换为系统时钟SYSCLK
+    RCC_SYSCLKConfig(RCC_SYSCLKSource_PLLCLK);
 
-//    /* 选中PLL作为系统时钟源并且配置HCLK,PCLK1和PCLK2*/
-//    rcc_clk_init.ClockType = ( RCC_CLOCKTYPE_SYSCLK \
-//                                    | RCC_CLOCKTYPE_HCLK \
-//                                    | RCC_CLOCKTYPE_PCLK1 \
-//                                    | RCC_CLOCKTYPE_PCLK2);
+    // 读取时钟切换状态位，确保PLLCLK被选为系统时钟
+    while (RCC_GetSYSCLKSource() != 0x08)
+    {
+    }
+  }
+  else
+  { // HSE启动出错处理
 
-//    rcc_clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;            /* 设置系统时钟时钟源为PLL */
-//    rcc_clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1;                   /* AHB分频系数为1 */
-//    rcc_clk_init.APB1CLKDivider = RCC_HCLK_DIV4;                    /* APB1分频系数为4 */
-//    rcc_clk_init.APB2CLKDivider = RCC_HCLK_DIV2;                    /* APB2分频系数为2 */
-//    ret = HAL_RCC_ClockConfig(&rcc_clk_init, FLASH_LATENCY_5);      /* 同时设置FLASH延时周期为5WS，也就是6个CPU周期 */
-//    if (ret != HAL_OK)
-//    {
-//        return 1;                                                   /* 时钟初始化失败 */
-//    }
-//    sys_nvic_set_vector_table(FLASH_BASE, 0x0);
-//    return 0;
-//}
-
+    while (1)
+    {
+    }
+  }
+}
 
 #ifdef  USE_FULL_ASSERT
 
