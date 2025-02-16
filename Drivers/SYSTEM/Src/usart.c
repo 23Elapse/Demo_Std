@@ -29,6 +29,7 @@ typedef struct {
     uint32_t RCC_APB2Periph;     // 时钟使能，例如 RCC_APB2Periph_USART1
     uint32_t RCC_APB2Periph_GPIO;// GPIO 时钟使能，例如 RCC_APB2Periph_GPIOA
     uint8_t IRQChannel;          // 中断通道，例如 USART1_IRQn
+    uint8_t Priority;           // 中断优先级
     uint32_t BaudRate;           // 波特率，例如 9600
 } USART_Config;
 
@@ -57,7 +58,7 @@ void MyUSART_Init(USART_Config* config) {
     USART_InitStructure.USART_BaudRate = config->BaudRate;
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
     USART_InitStructure.USART_StopBits = USART_StopBits_1;
-    USART_InitStructure.USART_Parity = USART_Parity_No;
+    USART_InitStructure.USART_Parity = config->Priority;
     USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
     USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
     USART_Init(config->USARTx, &USART_InitStructure);
@@ -138,6 +139,7 @@ USART_Config usart1_config = {
     .RCC_APB2Periph = RCC_APB2Periph_USART1,
     .RCC_APB2Periph_GPIO = RCC_AHB1Periph_GPIOA,
     .IRQChannel = USART1_IRQn,
+    .Priority = 0,
     .BaudRate = 115200,
 };
 

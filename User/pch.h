@@ -2,6 +2,7 @@
 #define PCH_H
 
 #include "stm32f4xx.h"
+//#include "stm32f429xx.h"
 #include "stm32f4xx_gpio.h" 
 #include "stm32f4xx_rcc.h"
 #include "stm32f4xx_usart.h"
@@ -40,7 +41,7 @@
 #include "led.h"
 #include "delay.h"
 #include "key.h"
-
+#include "exti.h"
 #endif
 
 

@@ -415,6 +415,11 @@
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\key.c</FilePath>
             </File>
+            <File>
+              <FileName>exti.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\exti.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -720,6 +725,11 @@
               <FileName>stm32f4xx_it.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\stm32f4xx_it.c</FilePath>
+            </File>
+            <File>
+              <FileName>pch.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\User\pch.h</FilePath>
             </File>
           </Files>
         </Group>

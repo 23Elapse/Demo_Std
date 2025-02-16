@@ -1,9 +1,6 @@
-#include "./BSP/Inc/exti.h"
-#include "./SYSTEM/Inc/sys.h"
-#include "./SYSTEM/Inc/delay.h"
-#include "./BSP/Inc/led.h"
-#include "./BSP/Inc/key.h"
+#include "pch.h"
 
+void GPIO_IRQHandler(uint32_t pin);
 /**
  * @brief       KEY0 外部中断服务程序
  * @param       无
@@ -11,8 +8,8 @@
  */
 void KEY0_INT_IRQHandler(void)
 {
-    HAL_GPIO_EXTI_IRQHandler(KEY0_INT_GPIO_PIN);         /* 调用中断处理公用函数，清除中断标志位 */
-    __HAL_GPIO_EXTI_CLEAR_IT(KEY0_INT_GPIO_PIN);         /* 退出时再清一次中断，避免按键抖动误触发 */
+    GPIO_IRQHandler(KEY0_INT_GPIO_PIN);         /* 调用中断处理公用函数，清除中断标志位 */
+    EXTI->PR = KEY0_INT_GPIO_PIN;        /* 退出时再清一次中断，避免按键抖动误触发 */
 }
 
 /**
@@ -22,8 +19,8 @@ void KEY0_INT_IRQHandler(void)
  */
 void KEY1_INT_IRQHandler(void)
 { 
-    HAL_GPIO_EXTI_IRQHandler(KEY1_INT_GPIO_PIN);         /* 调用中断处理公用函数，清除中断标志位 */
-    __HAL_GPIO_EXTI_CLEAR_IT(KEY1_INT_GPIO_PIN);         /* 退出时再清一次中断，避免按键抖动误触发 */
+    GPIO_IRQHandler(KEY1_INT_GPIO_PIN);         /* 调用中断处理公用函数，清除中断标志位 */
+    EXTI->PR = KEY1_INT_GPIO_PIN;        /* 退出时再清一次中断，避免按键抖动误触发 */
 }
 
 /**
@@ -33,8 +30,8 @@ void KEY1_INT_IRQHandler(void)
  */
 void KEY2_INT_IRQHandler(void)
 { 
-    HAL_GPIO_EXTI_IRQHandler(KEY2_INT_GPIO_PIN);        /* 调用中断处理公用函数，清除中断标志位 */
-    __HAL_GPIO_EXTI_CLEAR_IT(KEY2_INT_GPIO_PIN);        /* 退出时再清一次中断，避免按键抖动误触发 */
+    GPIO_IRQHandler(KEY2_INT_GPIO_PIN);        /* 调用中断处理公用函数，清除中断标志位 */
+    EXTI->PR = KEY2_INT_GPIO_PIN;        /* 退出时再清一次中断，避免按键抖动误触发 */
 }
 
 /**
@@ -44,17 +41,76 @@ void KEY2_INT_IRQHandler(void)
  */
 void WKUP_INT_IRQHandler(void)
 { 
-    HAL_GPIO_EXTI_IRQHandler(WKUP_INT_GPIO_PIN);        /* 调用中断处理公用函数，清除中断标志位 */
-    __HAL_GPIO_EXTI_CLEAR_IT(WKUP_INT_GPIO_PIN);        /* 退出时再清一次中断，避免按键抖动误触发 */
+    GPIO_IRQHandler(WKUP_INT_GPIO_PIN);        /* 调用中断处理公用函数，清除中断标志位 */
+    EXTI->PR = WKUP_INT_GPIO_PIN;         /* 退出时再清一次中断，避免按键抖动误触发 */
 }
 
-/**
- * @brief       中断服务程序中需要做的事情
-                在HAL库中所有的外部中断服务函数都会调用此函数
- * @param       GPIO_Pin:中断引脚号
- * @retval      无
- */
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+// 配置单个 GPIO 引脚
+void GPIO_InitPin(GPIO_Config_TypeDef *gpio_config, EXTI_Config_TypeDef *exti_config, NVIC_Config_TypeDef *nvic_config) 
+{
+    if (gpio_config != NULL) {
+        RCC_AHB1PeriphClockCmd(gpio_config->RCC_AHB1Periph_GPIOx, ENABLE);
+        GPIO_InitTypeDef GPIO_InitStructure;
+        GPIO_InitStructure.GPIO_Pin = gpio_config->pin;
+        GPIO_InitStructure.GPIO_Mode = gpio_config->mode;
+        GPIO_InitStructure.GPIO_PuPd = gpio_config->pull;
+        GPIO_InitStructure.GPIO_Speed = gpio_config->speed;
+        GPIO_InitStructure.GPIO_OType = gpio_config->otype;
+        GPIO_Init(gpio_config->port, &GPIO_InitStructure);
+    }
+    if (exti_config != NULL) {
+        // 使能 SYSCFG 时钟
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
+        // 配置 EXTI 线路
+        SYSCFG_EXTILineConfig(exti_config->EXTI_PortSourceGPIOx, exti_config->EXTI_PinSourcex);  // 配置中断线路
+        EXTI_InitTypeDef EXTI_InitStructure;
+        EXTI_InitStructure.EXTI_Line = exti_config->EXTI_Line;  // 使用传入的 pin 配置
+        EXTI_InitStructure.EXTI_Mode = exti_config->EXTI_Mode;  // 中断模式
+        EXTI_InitStructure.EXTI_Trigger = exti_config->EXTI_Trigger;  // 默认配置为上升沿触发
+        EXTI_InitStructure.EXTI_LineCmd = exti_config->EXTI_LineCmd;  // 使能该中断线路
+        EXTI_Init(&EXTI_InitStructure);
+    }
+    if (nvic_config != NULL) {
+        // 配置 NVIC 中断
+        NVIC_InitTypeDef NVIC_InitStructure;
+        NVIC_InitStructure.NVIC_IRQChannel =  nvic_config->NVIC_IRQChannel;
+        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = nvic_config->NVIC_IRQChannelPreemptionPriority;
+        NVIC_InitStructure.NVIC_IRQChannelSubPriority = nvic_config->NVIC_IRQChannelSubPriority;
+        NVIC_InitStructure.NVIC_IRQChannelCmd = nvic_config->NVIC_IRQChannelCmd;
+        NVIC_Init(&NVIC_InitStructure);
+    }
+    
+}
+// 配置结构体数组
+GPIO_Config_TypeDef gpio_configs[] = {
+    { RCC_AHB1Periph_GPIOH, KEY0_INT_GPIO_PORT, KEY0_INT_GPIO_PIN, GPIO_Mode_IN, NULL, GPIO_PuPd_UP, GPIO_High_Speed},
+    { RCC_AHB1Periph_GPIOH, KEY1_INT_GPIO_PORT, KEY1_INT_GPIO_PIN, GPIO_Mode_IN, NULL, GPIO_PuPd_UP, GPIO_High_Speed},
+    { RCC_AHB1Periph_GPIOC, KEY2_INT_GPIO_PORT, KEY2_INT_GPIO_PIN, GPIO_Mode_IN, NULL, GPIO_PuPd_UP, GPIO_High_Speed},
+    { RCC_AHB1Periph_GPIOA, WKUP_INT_GPIO_PORT, WKUP_INT_GPIO_PIN, GPIO_Mode_IN, NULL, GPIO_PuPd_DOWN, GPIO_High_Speed}
+};
+EXTI_Config_TypeDef exti_configs[] = {
+    { KEY0_INT_EXTI_LINE, EXTI_Mode_Interrupt, EXTI_Trigger_Falling, ENABLE, KEY0_INT_EXTI_PORTSOURCE, KEY0_INT_EXTI_PINSOURCE},
+    { KEY1_INT_EXTI_LINE, EXTI_Mode_Interrupt, EXTI_Trigger_Falling, ENABLE, KEY1_INT_EXTI_PORTSOURCE, KEY1_INT_EXTI_PINSOURCE},
+    { KEY2_INT_EXTI_LINE, EXTI_Mode_Interrupt, EXTI_Trigger_Falling, ENABLE, KEY2_INT_EXTI_PORTSOURCE, KEY2_INT_EXTI_PINSOURCE},
+    { WKUP_INT_EXTI_LINE, EXTI_Mode_Interrupt, EXTI_Trigger_Rising, ENABLE, WKUP_INT_EXTI_PORTSOURCE, WKUP_INT_EXTI_PINSOURCE}
+};
+NVIC_Config_TypeDef nvic_configs[] = {
+    { KEY0_INT_IRQn, 0, 2, ENABLE},
+    { KEY1_INT_IRQn, 1, 2, ENABLE},
+    { KEY2_INT_IRQn, 2, 2, ENABLE},
+    { WKUP_INT_IRQn, 3, 2, ENABLE}
+};
+uint32_t num_pins = sizeof(gpio_configs) / sizeof(GPIO_Config_TypeDef);
+
+// 配置多个引脚
+void GPIO_InitMultiplePins(GPIO_Config_TypeDef *gpio_config, EXTI_Config_TypeDef *exti_config, NVIC_Config_TypeDef *nvic_config, uint32_t num_pins) {
+
+    for (uint32_t i = 0; i < num_pins; i++) {
+        GPIO_InitPin(&gpio_config[i], &exti_config[i], &nvic_config[i]);
+    }
+}
+
+void GPIO_IRQHandler(uint32_t GPIO_Pin)
 {
     delay_ms(20);                                       /* 消抖 */
     switch (GPIO_Pin)
@@ -86,7 +142,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             {
                 LED1_TOGGLE();                          /* LED1状态取反 */
 
-                if (HAL_GPIO_ReadPin(LED1_GPIO_PORT, LED1_GPIO_PIN) == 1)
+                if (GPIO_ReadInputDataBit(LED1_GPIO_PORT, LED1_GPIO_PIN) == 1)
                  {
                    LED0(0);
                  }
@@ -108,41 +164,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  */
 void extix_init(void)
 {
-    GPIO_InitTypeDef gpio_init_struct;
-    
-    key_init();
-    gpio_init_struct.Pin = KEY0_INT_GPIO_PIN;
-    gpio_init_struct.Mode = GPIO_MODE_IT_FALLING;            /* 下降沿触发 */
-    gpio_init_struct.Pull = GPIO_PULLUP;
-    HAL_GPIO_Init(KEY0_INT_GPIO_PORT, &gpio_init_struct);    /* KEY0配置为下降沿触发中断 */
-
-    gpio_init_struct.Pin = KEY1_INT_GPIO_PIN;
-    gpio_init_struct.Mode = GPIO_MODE_IT_FALLING;            /* 下降沿触发 */
-    gpio_init_struct.Pull = GPIO_PULLUP;
-    HAL_GPIO_Init(KEY1_INT_GPIO_PORT, &gpio_init_struct);    /* KEY1配置为下降沿触发中断 */
-    
-    gpio_init_struct.Pin = KEY2_INT_GPIO_PIN;
-    gpio_init_struct.Mode = GPIO_MODE_IT_FALLING;            /* 下降沿触发 */
-    gpio_init_struct.Pull = GPIO_PULLUP;
-    HAL_GPIO_Init(KEY2_INT_GPIO_PORT, &gpio_init_struct);    /* KEY2配置为下降沿触发中断 */
-    
-    gpio_init_struct.Pin = WKUP_INT_GPIO_PIN;
-    gpio_init_struct.Mode = GPIO_MODE_IT_RISING;             /* 上升沿触发 */
-    gpio_init_struct.Pull = GPIO_PULLDOWN;
-    HAL_GPIO_Init(WKUP_GPIO_PORT, &gpio_init_struct);        /* WKUP配置为上升沿触发中断 */
-
-    HAL_NVIC_SetPriority(KEY0_INT_IRQn, 0, 2);               /* 抢占0，子优先级2 */
-    HAL_NVIC_EnableIRQ(KEY0_INT_IRQn);                       /* 使能中断线3 */
-
-    HAL_NVIC_SetPriority(KEY1_INT_IRQn, 1, 2);               /* 抢占1，子优先级2 */
-    HAL_NVIC_EnableIRQ(KEY1_INT_IRQn);                       /* 使能中断线2 */
-    
-    HAL_NVIC_SetPriority(KEY2_INT_IRQn, 2, 2);               /* 抢占2，子优先级2 */
-    HAL_NVIC_EnableIRQ(KEY2_INT_IRQn);                       /* 使能中断线13 */
-
-    HAL_NVIC_SetPriority(WKUP_INT_IRQn, 3, 2);               /* 抢占3，子优先级2 */
-    HAL_NVIC_EnableIRQ(WKUP_INT_IRQn);                       /* 使能中断线0 */
+    GPIO_InitMultiplePins(gpio_configs, exti_configs, nvic_configs, num_pins);
 }
-
-
 
