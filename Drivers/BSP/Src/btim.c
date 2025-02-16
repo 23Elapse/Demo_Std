@@ -1,67 +1,46 @@
-#include "./BSP/Inc/led.h"
-#include "./BSP/Inc/btim.h"
+#include "pch.h"
 
+// 定时器中断周期（单位：毫秒）
+#define TIMER_INTERRUPT_PERIOD_MS 1000
 
-TIM_HandleTypeDef g_timx_handle;                                /* 定时器参数句柄 */
+// 定时器初始化函数
+void TIM6_Init(uint16_t arr, uint16_t psc) {
+    // 1. 使能 TIM6 时钟
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM6, ENABLE);
 
-/**
- * @brief       基本定时器TIMX定时中断初始化函数
- * @note
- *              基本定时器的时钟来自APB1,当PPRE1 ≥ 2分频的时候
- *              基本定时器的时钟为APB1时钟的2倍, 而APB1为45M, 所以定时器时钟 = 90Mhz
- *              定时器溢出时间计算方法: Tout = ((arr + 1) * (psc + 1)) / Ft us.
- *              Ft=定时器工作频率,单位:Mhz
- *
- * @param       arr : 自动重装值。
- * @param       psc : 时钟预分频数
- * @retval      无
- */
-void btim_timx_int_init(uint16_t arr, uint16_t psc)
-{
-    g_timx_handle.Instance = BTIM_TIMX_INT;                      /* 定时器x */
-    g_timx_handle.Init.Prescaler = psc;                          /* 分频 */
-    g_timx_handle.Init.CounterMode = TIM_COUNTERMODE_UP;         /* 递增计数模式 */
-    g_timx_handle.Init.Period = arr;                             /* 自动装载值 */
-    HAL_TIM_Base_Init(&g_timx_handle);
-    
-    HAL_TIM_Base_Start_IT(&g_timx_handle);                       /* 使能定时器x和定时器更新中断 */
+    // 2. 配置定时器
+    TIM_TimeBaseInitTypeDef TIM_TimeBaseStruct;
+    TIM_TimeBaseStruct.TIM_Prescaler = psc;  // 预分频器，1MHz 计数频率
+    TIM_TimeBaseStruct.TIM_CounterMode = TIM_CounterMode_Up;            // 向上计数模式
+    TIM_TimeBaseStruct.TIM_Period = arr;  // 自动重装载值
+    TIM_TimeBaseStruct.TIM_ClockDivision = TIM_CKD_DIV1;                // 时钟分频
+    TIM_TimeBaseStruct.TIM_RepetitionCounter = 0;                       // 重复计数器（基本定时器无效）
+    TIM_TimeBaseInit(TIM6, &TIM_TimeBaseStruct);
+
+    // 3. 使能定时器中断
+    TIM_ITConfig(TIM6, TIM_IT_Update, ENABLE);  // 使能更新中断
+
+    // 4. 配置 NVIC
+    NVIC_InitTypeDef NVIC_InitStruct;
+    NVIC_InitStruct.NVIC_IRQChannel = TIM6_DAC_IRQn;  // TIM6 中断通道
+    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 0;  // 抢占优先级
+    NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;         // 子优先级
+    NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;            // 使能中断
+    NVIC_Init(&NVIC_InitStruct);
+
+    // 5. 启动定时器
+    TIM_Cmd(TIM6, ENABLE);
 }
 
-/**
- * @brief       定时器底层驱动，开启时钟，设置中断优先级
-                此函数会被HAL_TIM_Base_Init()函数调用
- * @param       htim  : 定时器句柄
- * @retval      无
- */
-void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim)
-{
-    if (htim->Instance == BTIM_TIMX_INT)
-    {
-        BTIM_TIMX_INT_CLK_ENABLE();                     /* 使能TIMx时钟 */
-        HAL_NVIC_SetPriority(BTIM_TIMX_INT_IRQn, 1, 3); /* 抢占1，子优先级3 */
-        HAL_NVIC_EnableIRQ(BTIM_TIMX_INT_IRQn);         /* 开启ITMx中断 */
-    }
-}
+// TIM6 中断服务函数
+void TIM6_DAC_IRQHandler(void) {
+    if (TIM_GetITStatus(TIM6, TIM_IT_Update) != RESET) {
+        // 清除中断标志
+        TIM_ClearITPendingBit(TIM6, TIM_IT_Update);
 
-/**
- * @brief       基本定时器TIMX中断服务函数
- * @param       无
- * @retval      无
- */
-void BTIM_TIMX_INT_IRQHandler(void)
-{
-    HAL_TIM_IRQHandler(&g_timx_handle);                 /* 定时器回调函数 */
-}
+        // 定时器中断处理逻辑
+        // 例如：翻转 LED 状态
+         LED1_TOGGLE();                                  /* LED1反转 */
 
-/**
- * @brief       回调函数，定时器中断服务函数调用
- * @param       htim  : 定时器句柄
- * @retval      无
- */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-    if (htim->Instance == BTIM_TIMX_INT)
-    {
-        LED1_TOGGLE();                                  /* LED1反转 */
     }
 }

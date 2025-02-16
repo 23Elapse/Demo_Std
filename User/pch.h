@@ -42,7 +42,8 @@
 #include "delay.h"
 #include "key.h"
 #include "exti.h"
-// #include "wdg.h"
+#include "wdg.h"
+#include "btim.h"
 
 
 #endif

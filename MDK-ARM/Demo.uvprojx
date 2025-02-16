@@ -425,6 +425,11 @@
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\wdg.c</FilePath>
             </File>
+            <File>
+              <FileName>btim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\btim.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
