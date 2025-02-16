@@ -6,10 +6,8 @@
  * @FilePath: \Demo\Drivers\BSP\Src\wdg.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
-#include "./BSP/Inc/wdg.h"
+#include "pch.h"
 
-
-IWDG_HandleTypeDef g_iwdg_handle;        /* 独立看门狗句柄 */
 
 /**
  * @brief       初始化独立看门狗 
@@ -19,20 +17,28 @@ IWDG_HandleTypeDef g_iwdg_handle;        /* 独立看门狗句柄 */
  * @note        时间计算(大概):Tout=((4 * 2^prer) * rlr) / 32 (ms). 
  * @retval      无
  */
-void iwdg_init(uint32_t prer, uint16_t rlr)
-{
-    g_iwdg_handle.Instance = IWDG;
-    g_iwdg_handle.Init.Prescaler = prer; /* 设置IWDG分频系数 */
-    g_iwdg_handle.Init.Reload = rlr;     /* 从加载寄存器 IWDG->RLR 重装载值 */
-    HAL_IWDG_Init(&g_iwdg_handle);       /* 初始化IWDG并使能 */
+// 独立看门狗初始化函数
+void IWDG_Init(uint8_t prescaler, uint16_t reload) {
+    // 1. 使能 IWDG（启动独立看门狗）
+    IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);  // 允许写入 IWDG 寄存器
+    IWDG_Enable();  // 启动独立看门狗
+
+    // 2. 设置预分频器
+    IWDG_SetPrescaler(prescaler);  // 设置预分频器
+
+    // 3. 设置重装载值
+    IWDG_SetReload(reload);  // 设置重装载值
+
+    // 4. 重载计数器（喂狗）
+    IWDG_ReloadCounter();  // 重置计数器
+
+    // 5. 等待寄存器更新完成
+    while (IWDG_GetFlagStatus(IWDG_FLAG_PVU)) {}  // 等待预分频器更新完成
+    while (IWDG_GetFlagStatus(IWDG_FLAG_RVU)) {}  // 等待重装载值更新完成
 }
 
-/**
- * @brief       喂独立看门狗
- * @param       无
- * @retval      无
- */
-void iwdg_feed(void)
-{
-    HAL_IWDG_Refresh(&g_iwdg_handle);    /* 喂狗 */
+// 喂狗函数
+void IWDG_Feed(void) {
+    IWDG_ReloadCounter();  // 重置计数器
 }
+

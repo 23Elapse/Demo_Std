@@ -8,148 +8,135 @@ int fputc(int ch, FILE *f)
     return ch;
 }
 
-#define RX_BUFFER_SIZE 2000  // 接收缓冲区大小
-#define TX_BUFFER_SIZE 2000  // 发送缓冲区大小
+RingBuffer rx_buffer = {0};  // 接收缓冲区
+RingBuffer tx_buffer = {0};  // 发送缓冲区
 
-// 接收缓冲区
-uint8_t rx_buffer[RX_BUFFER_SIZE];
-volatile uint16_t rx_buffer_index = 0; // 当前接收数据的索引
-volatile uint8_t rx_complete_flag = 0; // 接收完成标志
-
-// 发送缓冲区
-uint8_t tx_buffer[TX_BUFFER_SIZE];
-volatile uint16_t tx_buffer_index = 0; // 当前发送数据的索引
-volatile uint8_t tx_complete_flag = 1; // 发送完成标志（初始为1，表示空闲）
-
-typedef struct {
-    USART_TypeDef* USARTx;       // USART 实例，例如 USART1, USART2 等
-    GPIO_TypeDef* GPIOx;         // GPIO 端口，例如 GPIOA, GPIOB 等
-    uint16_t TxPin;              // 发送引脚，例如 GPIO_Pin_9
-    uint16_t RxPin;              // 接收引脚，例如 GPIO_Pin_10
-    uint32_t RCC_APB2Periph;     // 时钟使能，例如 RCC_APB2Periph_USART1
-    uint32_t RCC_APB2Periph_GPIO;// GPIO 时钟使能，例如 RCC_APB2Periph_GPIOA
-    uint8_t IRQChannel;          // 中断通道，例如 USART1_IRQn
-    uint8_t Priority;           // 中断优先级
-    uint32_t BaudRate;           // 波特率，例如 9600
-} USART_Config;
-
-void MyUSART_Init(USART_Config* config) {
-    GPIO_InitTypeDef GPIO_InitStructure;
-    USART_InitTypeDef USART_InitStructure;
-    NVIC_InitTypeDef NVIC_InitStructure;
-
-    // 使能 GPIO 和 USART 时钟
-    RCC_APB2PeriphClockCmd(config->RCC_APB2Periph_GPIO | config->RCC_APB2Periph, ENABLE);
-
-    // 配置 Tx 引脚为复用推挽输出
-    GPIO_InitStructure.GPIO_Pin = config->TxPin;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-    GPIO_Init(config->GPIOx, &GPIO_InitStructure);
-
-    // 配置 Rx 引脚为浮空输入
-    GPIO_InitStructure.GPIO_Pin = config->RxPin;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-    GPIO_Init(config->GPIOx, &GPIO_InitStructure);
-
-    // 配置 USART
-    USART_InitStructure.USART_BaudRate = config->BaudRate;
-    USART_InitStructure.USART_WordLength = USART_WordLength_8b;
-    USART_InitStructure.USART_StopBits = USART_StopBits_1;
-    USART_InitStructure.USART_Parity = config->Priority;
-    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
-    USART_Init(config->USARTx, &USART_InitStructure);
-
-    // 使能接收中断
-    USART_ITConfig(config->USARTx, USART_IT_RXNE, ENABLE);
-
-    // 配置 USART 中断
-    NVIC_InitStructure.NVIC_IRQChannel = config->IRQChannel;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
-
-    // 使能 USART
-    USART_Cmd(config->USARTx, ENABLE);
-}
-void USART_SendChar(USART_TypeDef* USARTx, uint8_t ch) {
-    // 等待发送数据寄存器为空
-    while (USART_GetFlagStatus(USARTx, USART_FLAG_TXE) == RESET);
-    // 发送数据
-    USART_SendData(USARTx, ch);
-}
-void myUSART_SendData(USART_TypeDef* USARTx, uint8_t* data, uint16_t len) {
-    // 等待发送完成
-    while (!tx_complete_flag);
-    tx_complete_flag = 0; // 标记发送中
-
-    // 将数据复制到发送缓冲区
-    memcpy(tx_buffer, data, len);
-    tx_buffer_index = 0;
-
-    // 启动发送
-    USART_SendChar(USARTx, tx_buffer[tx_buffer_index++]);
-}
-
-
-
-
-void USART_IRQHandler(USART_TypeDef* USARTx) {
-    if (USART_GetITStatus(USARTx, USART_IT_RXNE) != RESET) {
-        // 读取接收到的数据
-        uint8_t receivedData = USART_ReceiveData(USARTx);
-
-        // 将数据存入接收缓冲区
-        if (rx_buffer_index < RX_BUFFER_SIZE - 1) {
-            rx_buffer[rx_buffer_index++] = receivedData;
-        }
-
-        // 如果接收到换行符（或其他结束符），标记接收完成
-        if (receivedData == '\n' || receivedData == '\r') {
-            rx_buffer[rx_buffer_index] = '\0'; // 添加字符串结束符
-            rx_complete_flag = 1; // 标记接收完成
-            rx_buffer_index = 0;  // 重置索引
-        }
-
-        // 清除中断标志
-        USART_ClearITPendingBit(USARTx, USART_IT_RXNE);
+uint8_t Get_GPIO_PinSource(uint16_t GPIO_Pin) {
+    uint8_t PinSource = 0;
+    while (GPIO_Pin > 1) {
+        GPIO_Pin >>= 1;
+        PinSource++;
     }
+    return PinSource;
+}
 
-    if (USART_GetITStatus(USARTx, USART_IT_TXE) != RESET) {
-        // 发送下一个字节
-        if (tx_buffer_index < TX_BUFFER_SIZE && tx_buffer[tx_buffer_index] != '\0') {
-            USART_SendData(USARTx, tx_buffer[tx_buffer_index++]);
-        } else {
-            // 发送完成
-            tx_complete_flag = 1; // 标记发送完成
-            USART_ITConfig(USARTx, USART_IT_TXE, DISABLE); // 关闭发送中断
-        }
+void USART_InitWithInterrupt(USART_ConfigTypeDef* USART_Config) {
+    // 1. 使能 GPIO 时钟
+    if (USART_Config->GPIOx == GPIOA) {
+        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+    } else if (USART_Config->GPIOx == GPIOB) {
+        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+    } else if (USART_Config->GPIOx == GPIOC) {
+        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
     }
-}
-// 配置 USART1
-USART_Config usart1_config = {
-    .USARTx = USART1,
-    .GPIOx = GPIOA,
-    .TxPin = GPIO_Pin_9,
-    .RxPin = GPIO_Pin_10,
-    .RCC_APB2Periph = RCC_APB2Periph_USART1,
-    .RCC_APB2Periph_GPIO = RCC_AHB1Periph_GPIOA,
-    .IRQChannel = USART1_IRQn,
-    .Priority = 0,
-    .BaudRate = 115200,
-};
+    // 根据需要添加更多 GPIO 端口
 
-// 初始化 USART1
-void USART1_Init(void) {
-    MyUSART_Init(&usart1_config);
-}
+    // 2. 使能 USART 时钟
+    if (USART_Config->USARTx == USART1) {
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
+    } else if (USART_Config->USARTx == USART2) {
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
+    } else if (USART_Config->USARTx == USART3) {
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
+    }
+    // 根据需要添加更多 USART 端口
 
-// USART1 中断处理函数
+    // 3. 配置 GPIO 复用功能
+    GPIO_PinAFConfig(USART_Config->GPIOx, Get_GPIO_PinSource(USART_Config->GPIO_Pin_TX), USART_Config->GPIO_AF);
+    GPIO_PinAFConfig(USART_Config->GPIOx, Get_GPIO_PinSource(USART_Config->GPIO_Pin_RX), USART_Config->GPIO_AF);
+
+    // 4. 配置 GPIO 模式
+    GPIO_InitTypeDef GPIO_InitStruct;
+    GPIO_InitStruct.GPIO_Pin = USART_Config->GPIO_Pin_TX | USART_Config->GPIO_Pin_RX;
+    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF;          // 复用模式
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_100MHz;
+    GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;        // 推挽输出
+    GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_UP;          // 上拉
+    GPIO_Init(USART_Config->GPIOx, &GPIO_InitStruct);
+
+    // 5. 配置 USART 参数
+    USART_InitTypeDef USART_InitStruct;
+    USART_InitStruct.USART_BaudRate = USART_Config->BaudRate;
+    USART_InitStruct.USART_WordLength = USART_Config->USART_WordLength;
+    USART_InitStruct.USART_StopBits = USART_Config->USART_StopBits;
+    USART_InitStruct.USART_Parity = USART_Config->USART_Parity;
+    USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    USART_InitStruct.USART_Mode = USART_Config->USART_Mode;
+    USART_Init(USART_Config->USARTx, &USART_InitStruct);
+
+    // 6. 使能中断
+    USART_ITConfig(USART_Config->USARTx, USART_IT_RXNE, ENABLE);  // 使能接收中断
+    USART_ITConfig(USART_Config->USARTx, USART_IT_TXE, DISABLE);  // 默认关闭发送中断
+
+    // 7. 配置 NVIC
+    NVIC_InitTypeDef NVIC_InitStruct;
+    NVIC_InitStruct.NVIC_IRQChannel = USART_Config->USART_IRQChannel;
+    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = USART_Config->NVIC_Priority;
+    NVIC_InitStruct.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStruct);
+
+    // 8. 使能 USART
+    USART_Cmd(USART_Config->USARTx, ENABLE);
+}
+// 中断服务函数
 void USART1_IRQHandler(void) {
-    USART_IRQHandler(USART1);
+    // 接收中断处理
+    if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) {
+        uint8_t data = USART_ReceiveData(USART1);
+        // 将数据存入接收缓冲区
+        uint16_t next = (rx_buffer.head + 1) % RX_BUFFER_SIZE;
+        if (next != rx_buffer.tail) {
+            rx_buffer.buffer[rx_buffer.head] = data;
+            rx_buffer.head = next;
+        }
+        USART_ClearITPendingBit(USART1, USART_IT_RXNE);
+    }
+
+    // 发送中断处理
+    if (USART_GetITStatus(USART1, USART_IT_TXE) != RESET) {
+        if (tx_buffer.head != tx_buffer.tail) {
+            USART_SendData(USART1, tx_buffer.buffer[tx_buffer.tail]);
+            tx_buffer.tail = (tx_buffer.tail + 1) % TX_BUFFER_SIZE;
+        } else {
+            // 缓冲区空，关闭发送中断
+            USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
+        }
+        USART_ClearITPendingBit(USART1, USART_IT_TXE);
+    }
 }
+
+// 发送字符串（中断方式）
+void USART1_SendString(const char *str) {
+    // 禁用中断防止数据竞争
+    __disable_irq();
+    uint16_t len = strlen(str);
+    for (uint16_t i = 0; i < len; i++) {
+        uint16_t next = (tx_buffer.head + 1) % TX_BUFFER_SIZE;
+        while (next == tx_buffer.tail); // 等待缓冲区空间
+        tx_buffer.buffer[tx_buffer.head] = str[i];
+        tx_buffer.head = next;
+    }
+    // 使能发送中断
+    USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
+    __enable_irq();
+}
+
+// 接收数据（非阻塞）
+uint16_t USART1_ReceiveData(uint8_t *buf, uint16_t len) {
+    __disable_irq();
+    uint16_t count = 0;
+    while (rx_buffer.tail != rx_buffer.head && count < len) {
+        buf[count++] = rx_buffer.buffer[rx_buffer.tail];
+        rx_buffer.tail = (rx_buffer.tail + 1) % RX_BUFFER_SIZE;
+    }
+    __enable_irq();
+    return count;
+}
+
+// // 重定向printf到串口
+// int fputc(int ch, FILE *f) {
+//     USART1_SendString((const char*)&ch);
+//     return ch;
+// }
 

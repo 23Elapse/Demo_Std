@@ -9,10 +9,8 @@
 #ifndef __WDG_H
 #define __WDG_H
 
-#include "./SYSTEM/Inc/sys.h"
 
-
-void iwdg_init(uint32_t prer, uint16_t rlr);        /* 初始化IWDG，并使能IWDG */
-void iwdg_feed(void);                               /* 喂狗 */
+void IWDG_Init(uint8_t prescaler, uint16_t reload);        /* 初始化IWDG，并使能IWDG */
+void IWDG_Feed(void);                               /* 喂狗 */
 
 #endif
