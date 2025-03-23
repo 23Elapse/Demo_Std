@@ -1,3 +1,13 @@
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-02-15 20:36:56
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-03-23 18:25:45
+ * @FilePath: \Demo\User\pch.h
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
+ */
 #ifndef PCH_H
 #define PCH_H
 
@@ -33,6 +43,7 @@
 #include "stm32f4xx_lptim.h"
 #include "stm32f4xx_rtc.h"
 #include "stm32f4xx_spi.h"
+#include <stdbool.h>
 #include <string.h> // 用于 memcpy 和 memset
 #include <stdint.h>
 #include <stdio.h>
@@ -44,6 +55,8 @@
 #include "exti.h"
 #include "wdg.h"
 #include "btim.h"
+// #include "spi.h"
+#include "spi_flash.h"
 
 
 #endif
