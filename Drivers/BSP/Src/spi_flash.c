@@ -213,9 +213,6 @@ void SPI_Flash_Init(SPI_Flash_Config* config)
 	SPI_InitStruct.SPI_CRCPolynomial = 7;	//CRC值计算的多项式
     SPI_Init(config->SPIx, &SPI_InitStruct);
     SPI_Cmd(config->SPIx, ENABLE);
-
-    SPI_Enter4ByteMode(config); // 进入4字节地址模式
-
 }
 
 void Flash_init(SPI_Flash_Config* config)

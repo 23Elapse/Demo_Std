@@ -2,7 +2,7 @@
  * @Author: Elapse userszy@163.com
  * @Date: 2024-10-26 15:38:11
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-03-23 17:23:56
+ * @LastEditTime: 2025-03-23 18:56:14
  * @FilePath: \Demo\User\main.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -56,7 +56,7 @@ int main(void)
             }
             printf("\r\n");
 
-            printf("flash write 0 ~ 256\r\n");
+            printf("flash write 0 ~ 255\r\n");
             for (uint16_t i = 0; i < 256; i++) {
                 data[i] = i;
                 printf("%d ", data[i]);
@@ -91,7 +91,7 @@ int main(void)
             printf("\r\n");
             printf("Writing page...\r\n");
             for (uint16_t i = 0; i < 256; i++) {
-                data[i] = 256 - i;
+                data[i] = 255 - i;
                 printf("%d ", data[i]);
             }
             printf("\r\n");
