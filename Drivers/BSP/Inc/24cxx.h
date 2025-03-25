@@ -1,19 +1,19 @@
-/**
- ****************************************************************************************************
- * @file        24cxx.h
- * @author      正点原子团队(ALIENTEK)
- * @version     V1.0
- * @date        2022-04-20
- * @brief       24CXX 驱动代码
- * @license     Copyright (c) 2020-2032, 广州市星翼电子科技有限公司
- ****************************************************************************************************
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-02-05 21:24:07
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-03-24 19:50:08
+ * @FilePath: \Demo\Drivers\BSP\Inc\24cxx.h
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
  */
 
 #ifndef __24CXX_H
 #define __24CXX_H
-
-#include "./SYSTEM/Inc/sys.h"
-
+#include "pch.h"
+#define EEPROM_TYPE AT24C02  //通过宏定义选择具体型号
+#define EEPROM_ADDR 0xA0     //基础设备地址（A2/A1/A0接地时为0xA0）
 
 #define AT24C01     127
 #define AT24C02     255
@@ -30,13 +30,12 @@
 
 /******************************************************************************************/
 
-void at24cxx_init(void);                                            /* 初始化IIC */
-uint8_t at24cxx_check(void);                                        /* 检查器件 */
-uint8_t at24cxx_read_one_byte(uint16_t addr);                       /* 指定地址读取一个字节 */
-void at24cxx_write_one_byte(uint16_t addr, uint8_t data);           /* 指定地址写入一个字节 */
-void at24cxx_write(uint16_t addr, uint8_t *pbuf, uint16_t datalen); /* 从指定地址开始写入指定长度的数据 */
-void at24cxx_read(uint16_t addr, uint8_t *pbuf, uint16_t datalen);  /* 从指定地址开始读出指定长度的数据 */
-
+void at24cxx_init(void);                                                                    /* 初始化IIC */
+uint8_t AT24CXX_ReadOneByte(IIC_TypeDef *IIC_Struct, uint16_t addr) ;                       /* 读取一个字节 */
+void AT24CXX_WriteOneByte(IIC_TypeDef *IIC_Struct, uint16_t addr, uint8_t data);            /* 写入一个字节 */
+void AT24CXX_Write(IIC_TypeDef *IIC_Struct, uint16_t addr, uint8_t *buf, uint16_t len);     /* 写入多个字节 */
+void AT24CXX_Read(IIC_TypeDef *IIC_Struct, uint16_t addr, uint8_t *buf, uint16_t len);      /* 读取多个字节 */
+uint8_t AT24CXX_Check(IIC_TypeDef *IIC_Struct);                                             /* 检查设备 */
 #endif
 
 

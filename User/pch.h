@@ -57,6 +57,8 @@
 #include "btim.h"
 // #include "spi.h"
 #include "spi_flash.h"
+#include "myiic.h"
+#include "24cxx.h"
 
 
 #endif

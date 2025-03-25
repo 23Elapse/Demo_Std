@@ -1,212 +1,193 @@
-/**
- ****************************************************************************************************
- * @file        myiic.c
- * @author      正点原子团队(ALIENTEK)
- * @version     V1.0
- * @date        2022-04-20
- * @brief       IIC 驱动代码
- * @license     Copyright (c) 2020-2032, 广州市星翼电子科技有限公司
- ****************************************************************************************************
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-02-05 21:24:07
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-03-25 00:56:59
+ * @FilePath: \Demo\Drivers\BSP\Src\myiic.c
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
  */
+#include "pch.h"
 
-#include "./BSP/Inc/myiic.h"
-#include "./SYSTEM/Inc/delay.h"
+IIC_TypeDef IIC1_Struct = {
+    .IIC_x = IIC1,
+    .IIC_SCL_PIN = IIC1_SCL_PIN,
+    .IIC_SDA_PIN = IIC1_SDA_PIN,
+    .IIC_SCL_GPIO_PORT = IIC1_SCL_GPIO_PORT,
+    .IIC_SDA_GPIO_PORT = IIC1_SDA_GPIO_PORT
+};
 
-
-/**
- * @brief       初始化IIC
- * @param       无
- * @retval      无
- */
-void iic_init(void)
-{
-    GPIO_InitTypeDef gpio_init_struct;
-
-    IIC_SCL_GPIO_CLK_ENABLE();                              /* SCL引脚时钟使能 */
-    IIC_SDA_GPIO_CLK_ENABLE();                              /* SDA引脚时钟使能 */
-
-    gpio_init_struct.Pin = IIC_SCL_GPIO_PIN;
-    gpio_init_struct.Mode = GPIO_MODE_OUTPUT_PP;            /* 推挽输出 */
-    gpio_init_struct.Pull = GPIO_PULLUP;                    /* 上拉 */
-    gpio_init_struct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;     /* 快速 */
-    HAL_GPIO_Init(IIC_SCL_GPIO_PORT, &gpio_init_struct);    /* SCL引脚初始化 */
-
-    /* SDA引脚开漏输出,上拉, 这样就不用再设置IO方向了,开漏输出的时候(=1), 也可以读取外部信号的高低电平 */
-    gpio_init_struct.Pin = IIC_SDA_GPIO_PIN;
-    gpio_init_struct.Mode = GPIO_MODE_OUTPUT_OD;            /* 开漏输出 */
-    HAL_GPIO_Init(IIC_SDA_GPIO_PORT, &gpio_init_struct);    /* SDA引脚初始化 */
-
-    iic_stop();                                             /* 停止总线上所有设备 */
-}
-
-/**
- * @brief       IIC延时函数,用于控制IIC读写速度
- * @param       无
- * @retval      无
- */
-static void iic_delay(void)
-{
-    delay_us(2);            /* 2us的延时, 读写速度在250Khz以内 */
-}
-
-/**
- * @brief       产生IIC起始信号
- * @param       无
- * @retval      无
- */
-void iic_start(void)
-{
-    IIC_SDA(1);
-    IIC_SCL(1);
-    iic_delay();
-    IIC_SDA(0);             /* START信号: 当SCL为高时, SDA从高变成低, 表示起始信号 */
-    iic_delay();
-    IIC_SCL(0);             /* 钳住I2C总线，准备发送或接收数据 */
-    iic_delay();
-}
-
-/**
- * @brief       产生IIC停止信号
- * @param       无
- * @retval      无
- */
-void iic_stop(void)
-{
-    IIC_SDA(0);             /* STOP信号: 当SCL为高时, SDA从低变成高, 表示停止信号 */
-    iic_delay();
-    IIC_SCL(1);
-    iic_delay();
-    IIC_SDA(1);             /* 发送I2C总线结束信号 */
-    iic_delay();
-}
-
-/**
- * @brief       等待应答信号到来
- * @param       无
- * @retval      1，接收应答失败
- *              0，接收应答成功
- */
-uint8_t iic_wait_ack(void)
-{
-    uint8_t waittime = 0;
-    uint8_t rack = 0;
-
-    IIC_SDA(1);             /* 主机释放SDA线(此时外部器件可以拉低SDA线) */
-    iic_delay();
-    IIC_SCL(1);             /* SCL=1, 此时从机可以返回ACK */
-    iic_delay();
-
-    while (IIC_READ_SDA)    /* 等待应答 */
-    {
-        waittime++;
-
-        if (waittime > 250)
-        {
-            iic_stop();
-            rack = 1;
-            break;
-        }
-    }
-
-    IIC_SCL(0);             /* SCL=0, 结束ACK检查 */
-    iic_delay();
-    return rack;
-}
-
-/**
- * @brief       产生ACK应答
- * @param       无
- * @retval      无
- */
-void iic_ack(void)
-{
-    IIC_SDA(0);             /* SCL 0 -> 1 时 SDA = 0,表示应答 */
-    iic_delay();
-    IIC_SCL(1);             /* 产生一个时钟 */
-    iic_delay();
-    IIC_SCL(0);
-    iic_delay();
-    IIC_SDA(1);             /* 主机释放SDA线 */
-    iic_delay();
-}
-
-/**
- * @brief       不产生ACK应答
- * @param       无
- * @retval      无
- */
-void iic_nack(void)
-{
-    IIC_SDA(1);             /* SCL 0 -> 1  时 SDA = 1,表示不应答 */
-    iic_delay();
-    IIC_SCL(1);             /* 产生一个时钟 */
-    iic_delay();
-    IIC_SCL(0);
-    iic_delay();
-}
-
-/**
- * @brief       IIC发送一个字节
- * @param       data: 要发送的数据
- * @retval      无
- */
-void iic_send_byte(uint8_t data)
-{
-    uint8_t t;
+void IIC_Init(IIC_TypeDef *IIC_Struct) {
+    GPIO_InitTypeDef GPIO_InitStruct;
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOH, ENABLE);
     
-    for (t = 0; t < 8; t++)
-    {
-        IIC_SDA((data & 0x80) >> 7);    /* 高位先发送 */
-        iic_delay();
-        IIC_SCL(1);
-        iic_delay();
-        IIC_SCL(0);
-        data <<= 1;             /* 左移1位,用于下一次发送 */
-    }
-    IIC_SDA(1);                 /* 发送完成, 主机释放SDA线 */
+    // SCL配置为开漏输出
+    GPIO_InitStruct.GPIO_Pin = IIC_Struct->IIC_SCL_PIN;
+    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT;  // 开漏模式
+    GPIO_InitStruct.GPIO_OType = GPIO_OType_OD;  // 开漏输出
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(IIC_Struct->IIC_SCL_GPIO_PORT, &GPIO_InitStruct);
+    
+    // SDA配置为开漏输出
+    GPIO_InitStruct.GPIO_Pin = IIC_Struct->IIC_SDA_PIN;
+    GPIO_Init(IIC_Struct->IIC_SDA_GPIO_PORT, &GPIO_InitStruct);
+    
+    IIC_SCL_1(IIC_Struct->IIC_x);  // 初始拉高
+    IIC_SDA_1(IIC_Struct->IIC_x);
 }
 
-/**
- * @brief       IIC读取一个字节
- * @param       ack:  ack=1时，发送ack; ack=0时，发送nack
- * @retval      接收到的数据
- */
-uint8_t iic_read_byte(uint8_t ack)
-{
-    uint8_t i, receive = 0;
 
-    for (i = 0; i < 8; i++ )    /* 接收1个字节数据 */
+// 起始信号
+void IIC_Start(IIC_TypeDef *IIC_Struct) {
+    IIC_SDA_1(IIC_Struct->IIC_x);  // 释放SDA
+    IIC_SCL_1(IIC_Struct->IIC_x);
+    delay_us(5);
+    IIC_SDA_0(IIC_Struct->IIC_x);   // SDA拉低
+    delay_us(5);
+    IIC_SCL_0(IIC_Struct->IIC_x);  // SCL拉低
+}
+
+void IIC_Stop(IIC_TypeDef *IIC_Struct) {
+    IIC_SDA_0(IIC_Struct->IIC_x);
+    IIC_SCL_0(IIC_Struct->IIC_x);
+    delay_us(5);
+    IIC_SCL_1(IIC_Struct->IIC_x);
+    delay_us(5);
+    IIC_SDA_1(IIC_Struct->IIC_x);
+}
+
+uint8_t IIC_ReadByte(IIC_TypeDef *IIC_Struct, uint8_t ack) {
+    uint8_t i, data = 0;
+    IIC_SDA_1(IIC_Struct->IIC_x);  // 释放SDA
+    for (i = 0; i < 8; i++) 
     {
-        receive <<= 1;          /* 高位先输出,所以先收到的数据位要左移 */
-        IIC_SCL(1);
-        iic_delay();
-
-        if (IIC_READ_SDA)
+        IIC_SCL_1(IIC_Struct->IIC_x);
+        data <<= 1;
+        delay_us(5);
+        if (IIC_SDA_READ(IIC_Struct->IIC_x)) 
         {
-            receive++;
+            data |= 0x01;
         }
-        
-        IIC_SCL(0);
-        iic_delay();
+        IIC_SCL_0(IIC_Struct->IIC_x);
+        delay_us(5);
     }
-
-    if (!ack)
+    if (ack) 
     {
-        iic_nack();             /* 发送nACK */
-    }
-    else
+        IIC_SDA_0(IIC_Struct->IIC_x);  // 发送ACK
+    } 
+    else 
     {
-        iic_ack();              /* 发送ACK */
+        IIC_SDA_1(IIC_Struct->IIC_x);  // 发送NACK
     }
-
-    return receive;
+    delay_us(5);
+    IIC_SCL_1(IIC_Struct->IIC_x);
+    delay_us(5);
+    IIC_SCL_0(IIC_Struct->IIC_x);
+    return data;
 }
 
+uint8_t IIC_SendByte(IIC_TypeDef *IIC_Struct, uint8_t data) {
+    uint8_t i;
+    for (i = 0; i < 8; i++) 
+    {
+        if (data & 0x80) {
+            IIC_SDA_1(IIC_Struct->IIC_x);
+        } else {
+            IIC_SDA_0(IIC_Struct->IIC_x);
+        }
+        data <<= 1;
+        IIC_SCL_1(IIC_Struct->IIC_x);
+        delay_us(5);
+        IIC_SCL_0(IIC_Struct->IIC_x);
+        delay_us(5);
+    }
+    IIC_SDA_1(IIC_Struct->IIC_x);  // 释放SDA线
+    delay_us(5);
+    IIC_SCL_1(IIC_Struct->IIC_x);
+    uint8_t ack = IIC_SDA_READ(IIC_Struct->IIC_x);  // 读取ACK
+    delay_us(5);
+    IIC_SCL_0(IIC_Struct->IIC_x);
+    return ack;  // 返回ACK状态
+    // if (IIC_SDA_READ(IIC_Struct->IIC_x) == RESET) 
+    // {
+    //     IIC_SCL_0(IIC_Struct->IIC_x);
+    //     return 0;    // 收到ACK
+    // } 
+    // else 
+    // {
+    //     IIC_SCL_0(IIC_Struct->IIC_x);
+    //     return 1;    // 未收到ACK
+    // }
+}
+// 读取一个字节
+uint8_t IIC_ReadOneByte(IIC_TypeDef *IIC_Struct, uint8_t devAddr, uint8_t addr) {
+    uint8_t data;
+    IIC_Start(IIC_Struct);
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, devAddr));  // 发送设备地址
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, addr));     // 发送地址
+    IIC_Start(IIC_Struct);              // 重复起始条件
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, devAddr + 1));  // 发送设备地址
+    data = IIC_ReadByte(IIC_Struct, 0);     // 读取数据
+    IIC_Stop(IIC_Struct);
+    return data;
+}
+// 写入一个字节
+void IIC_WriteOneByte(IIC_TypeDef *IIC_Struct, uint8_t devAddr, uint8_t addr, uint8_t data) {
+    IIC_Start(IIC_Struct);
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, devAddr));  // 发送设备地址
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, addr));     // 发送地址
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, data));     // 发送数据
+    IIC_Stop(IIC_Struct);
+    delay_ms(5);  // 等待写入完成
+}
+// 读取多个字节
+void IIC_ReadBytes(IIC_TypeDef *IIC_Struct, uint8_t devAddr, uint8_t addr, uint8_t *pbuf, uint16_t len) {
+    uint16_t i;
+    IIC_Start(IIC_Struct);
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, devAddr));  // 发送设备地址
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, addr));     // 发送地址
+    IIC_Start(IIC_Struct);              // 重复起始条件
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, devAddr + 1));  // 发送设备地址
+    for (i = 0; i < len; i++) 
+    {
+        pbuf[i] = IIC_ReadByte(IIC_Struct, i == len - 1 ? 0 : 1);  // 读取数据
+    }
+    IIC_Stop(IIC_Struct);
+}
+// 写入多个字节
+void IIC_WriteBytes(IIC_TypeDef *IIC_Struct, uint8_t devAddr, uint8_t addr, uint8_t *pbuf, uint16_t len) {
+    uint16_t i;
+    IIC_Start(IIC_Struct);
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, devAddr));  // 发送设备地址
+    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, addr));     // 发送地址
+    for (i = 0; i < len; i++) 
+    {
+        I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, pbuf[i]));  // 发送数据
+    }
+    IIC_Stop(IIC_Struct);
+    delay_ms(5);  // 等待写入完成
+}
+// 检查设备
+uint8_t IIC_CheckDevice(IIC_TypeDef *IIC_Struct, uint8_t devAddr, uint16_t timeout) {
+    uint8_t ack;
 
+    IIC_Start(IIC_Struct);  // 发送起始条件
+    ack = IIC_SendByte(IIC_Struct, devAddr);  // 发送设备地址
 
+    // 等待ACK或超时
+    while (ack && timeout) {
+        ack = IIC_SendByte(IIC_Struct, devAddr);  // 重试发送设备地址
+        timeout--;
+    }
 
+    IIC_Stop(IIC_Struct);  // 发送停止条件
 
+    if (timeout == 0) {
+        return 0xFF;  // 超时错误
+    }
 
-
+    return ack;  // 返回ACK状态
+}
 
 
