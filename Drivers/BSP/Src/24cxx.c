@@ -23,7 +23,7 @@ void AT24CXX_WaitWriteComplete(IIC_TypeDef *IIC_Struct) {
     uint16_t timeout = 1000;  // 超时时间
     while (timeout--) {
         IIC_Start(IIC_Struct);
-        if (IIC_SendByte(IIC_Struct, EEPROM_ADDR) == 0) {
+        if (IIC_WriteByte(IIC_Struct, EEPROM_ADDR) == 0) {
             IIC_Stop(IIC_Struct);
             return;
         }
@@ -52,16 +52,16 @@ uint8_t AT24CXX_ReadOneByte(IIC_TypeDef *IIC_Struct, uint16_t addr) {
     IIC_Start(IIC_Struct);
     //地址处理逻辑与写入一致
     #if (EEPROM_TYPE > AT24C16)
-        IIC_SendByte(IIC_Struct, EEPROM_ADDR);
+    IIC_WriteByte(IIC_Struct, EEPROM_ADDR);
         IIC_WaitAck(IIC_Struct);
-        IIC_SendByte(IIC_Struct, addr >> 8);
+        IIC_WriteByte(IIC_Struct, addr >> 8);
     #else
         uint8_t devAddr = EEPROM_ADDR | ((addr >> 7) & 0x0E);
-        I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, devAddr));
+        I2C_WAIT_WRITE(IIC_WriteByte(IIC_Struct, devAddr));
     #endif
-    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, addr & 0xFF));
+    I2C_WAIT_WRITE(IIC_WriteByte(IIC_Struct, addr & 0xFF));
     IIC_Start(IIC_Struct);                          //重复起始条件
-    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, EEPROM_ADDR | 0x01));      //切换到读模式  
+    I2C_WAIT_WRITE(IIC_WriteByte(IIC_Struct, EEPROM_ADDR | 0x01));      //切换到读模式  
     temp = IIC_ReadByte(IIC_Struct, 0);               //读取数据（发送NACK结束）
     IIC_Stop(IIC_Struct);
     
@@ -79,15 +79,15 @@ void AT24CXX_WriteOneByte(IIC_TypeDef *IIC_Struct, uint16_t addr, uint8_t data) 
     
     //动态生成设备地址（处理容量>2K的情况）
     #if (EEPROM_TYPE > AT24C16)
-        IIC_SendByte(IIC_Struct, EEPROM_ADDR);         //基础设备地址
+        IIC_WriteByte(IIC_Struct, EEPROM_ADDR);         //基础设备地址
         IIC_WaitAck(IIC_Struct);
-        IIC_SendByte(IIC_Struct, addr >> 8);           //发送高8位地址[4,7](@ref)
+        IIC_WriteByte(IIC_Struct, addr >> 8);           //发送高8位地址[4,7](@ref)
     #else
         uint8_t devAddr = EEPROM_ADDR | ((addr >> 7) & 0x0E); //24C04/08/16地址处理
-        I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, devAddr));            //含地址高位的设备地址[1,9](@ref)
+        I2C_WAIT_WRITE(IIC_WriteByte(IIC_Struct, devAddr));            //含地址高位的设备地址[1,9](@ref)
     #endif
-    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, addr & 0xFF));             //低8位地址  
-    I2C_WAIT_WRITE(IIC_SendByte(IIC_Struct, data));                    //发送数据
+    I2C_WAIT_WRITE(IIC_WriteByte(IIC_Struct, addr & 0xFF));             //低8位地址  
+    I2C_WAIT_WRITE(IIC_WriteByte(IIC_Struct, data));                    //发送数据
     IIC_Stop(IIC_Struct);
     AT24CXX_WaitWriteComplete(IIC_Struct);                          //等待写入完成
     // delay_ms(10);                          //统一延时等待写入完成[3,5](@ref)

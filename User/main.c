@@ -2,12 +2,12 @@
  * @Author: Elapse userszy@163.com
  * @Date: 2024-10-26 15:38:11
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-03-24 20:10:03
+ * @LastEditTime: 2025-03-29 15:17:05
  * @FilePath: \Demo\User\main.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
 #include "pch.h"
-const uint8_t g_text_buf[] = {"STM32 IIC TEST"}; 
+const uint8_t g_text_buf[] = {"STM32 IIC TEST iic_device1"}; 
 #define TEXT_SIZE   sizeof(g_text_buf)      /* TEXT 字符串长度 */
 /**
   * @brief  主函数
@@ -29,13 +29,15 @@ int main(void)
     TIM6_Init(5000 - 1, 9000 - 1);              /* 90 000 000 / 9000 = 10KHz 10KHz的计数频率，计数5K次为500ms */
     USART_InitWithInterrupt(&USART1_Config, &GPIO1_Config); /* 初始化串口1 */
     printf("USART1 Initialized!\r\n");
-    at24cxx_init();                           /* 初始化IIC */
+    // at24cxx_init(); 
+    IIC_Device1_INIT();                /* 初始化IIC */
+
     printf("AT24CXX Initialized!\r\n");
     // LED0(0);                                    /* 点亮LED0(红灯) */
     Flash_init(&flash_cfg);
     printf("SPI FLASH Initialized!\r\n");
 
-    while (AT24CXX_Check(&IIC1_Struct))  /* 检测不到 24c02 */ 
+    while (IIC_Device1_Check(&IIC_1))  /* 检测不到 24c02 */ 
     {   
         LED0_TOGGLE();       /* 红灯闪烁 */ 
     } 
@@ -45,12 +47,12 @@ int main(void)
         key = key_scan(0);
         if (key == KEY1_PRES)   /* KEY1 按下,写入 24C02 */ 
         { 
-            AT24CXX_Write(&IIC1_Struct, 0, (uint8_t *)g_text_buf, TEXT_SIZE); 
+            IIC_Device1_Write(&IIC_1, 0, (uint8_t *)g_text_buf, TEXT_SIZE); 
             printf("AT24CXX Write Data: %s\r\n", g_text_buf);
         } 
         if (key == KEY0_PRES)                                                        /* KEY1按下,写入W25Q128 */
         {
-            AT24CXX_Read(&IIC1_Struct, 0, datatemp, TEXT_SIZE); 
+            IIC_Device1_Read(&IIC_1, 0, datatemp, TEXT_SIZE); 
             printf("AT24CXX Read Data: %s\r\n", datatemp); 
         }
         if (key == WKUP_PRES)                                                        /* KEY1按下,写入W25Q128 */

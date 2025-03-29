@@ -445,6 +445,11 @@
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\myiic.c</FilePath>
             </File>
+            <File>
+              <FileName>iic1_driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\iic1_driver.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

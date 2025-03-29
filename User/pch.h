@@ -59,7 +59,7 @@
 #include "spi_flash.h"
 #include "myiic.h"
 #include "24cxx.h"
-
+#include "iic_core.h"
 
 #endif
 
