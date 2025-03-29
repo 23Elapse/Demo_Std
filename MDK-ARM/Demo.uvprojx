@@ -436,16 +436,6 @@
               <FilePath>..\Drivers\BSP\Src\spi_flash.c</FilePath>
             </File>
             <File>
-              <FileName>24cxx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\24cxx.c</FilePath>
-            </File>
-            <File>
-              <FileName>myiic.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\myiic.c</FilePath>
-            </File>
-            <File>
               <FileName>iic1_driver.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\iic1_driver.c</FilePath>
