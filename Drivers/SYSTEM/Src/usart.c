@@ -31,8 +31,11 @@ void USART_InitWithInterrupt(USART_ConfigTypeDef* USART_Config, GPIO_ConfigTypeD
         RCC_APB1PeriphClockCmd(USART_Config->USART_CLK, ENABLE);
 
     // 3. 配置 GPIO 复用功能
-    GPIO_PinAFConfig(GPIO_Config->GPIOx_RX, GPIO_Config->GPIO_PinSource_RX, GPIO_Config->GPIO_AF);
-    GPIO_PinAFConfig(GPIO_Config->GPIOx_TX, GPIO_Config->GPIO_PinSource_TX, GPIO_Config->GPIO_AF);
+    if(GPIO_Config->GPIO_Mode == GPIO_Mode_AF)
+    {
+        GPIO_PinAFConfig(GPIO_Config->GPIOx_TX, GPIO_Config->GPIO_PinSource_TX, GPIO_Config->GPIO_AF);
+        GPIO_PinAFConfig(GPIO_Config->GPIOx_RX, GPIO_Config->GPIO_PinSource_RX, GPIO_Config->GPIO_AF);
+    }
 
     // 4. 配置 GPIO 模式
     GPIO_InitTypeDef GPIO_InitStruct;
@@ -57,15 +60,14 @@ void USART_InitWithInterrupt(USART_ConfigTypeDef* USART_Config, GPIO_ConfigTypeD
     // 7. 配置 NVIC
     if(1 == USART_Config->NVIC_EnableIRQ) 
     {
-        // 6. 使能中断
-        USART_ITConfig(USART_Config->USARTx, USART_IT_RXNE, ENABLE);  // 使能接收中断
-        USART_ITConfig(USART_Config->USARTx, USART_IT_TXE, DISABLE);  // 默认关闭发送中断
         NVIC_InitTypeDef NVIC_InitStruct;
         NVIC_InitStruct.NVIC_IRQChannel = USART_Config->USART_IRQChannel;
-        NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 0;
-        NVIC_InitStruct.NVIC_IRQChannelSubPriority = 0;
+        NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = USART_Config->NVIC_IRQChannelPreemptionPriority;
+        NVIC_InitStruct.NVIC_IRQChannelSubPriority = USART_Config->NVIC_IRQChannelSubPriority;
         NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
         NVIC_Init(&NVIC_InitStruct);
+        USART_ITConfig(USART_Config->USARTx, USART_IT_RXNE, ENABLE);  // 使能接收中断
+        USART_ITConfig(USART_Config->USARTx, USART_IT_TXE, DISABLE);  // 默认关闭发送中断
     }
 
     // 8. 使能 USART
@@ -131,9 +133,8 @@ USART_ConfigTypeDef USART1_Config = {
     .BaudRate = 115200,
     .USART_Mode = USART_Mode_Rx | USART_Mode_Tx,
     .USART_IRQChannel = USART1_IRQn,
-    .USART_ITPriority = 0,
     .USART_CLK = RCC_APB2Periph_USART1,
-    .NVIC_EnableIRQ = 0
+    .NVIC_EnableIRQ = 0,
 };
 
 

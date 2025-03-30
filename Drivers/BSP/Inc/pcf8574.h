@@ -1,20 +1,29 @@
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-02-05 21:24:07
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-03-30 20:15:38
+ * @FilePath: \Demo\Drivers\BSP\Inc\pcf8574.h
+ * @Description:    
+ * 
+ * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
+ */
 #ifndef __PCF8574_H
 #define __PCF8574_H
 
-#include "./SYSTEM/Inc/sys.h"
-#include "./BSP/Inc/myiic.h"
-
+#include "pch.h"
+// #include "iic_core.h"
 
 /******************************************************************************************/
 /* 引脚 定义 */
 
 #define PCF8574_GPIO_PORT                  GPIOB
-#define PCF8574_GPIO_PIN                   GPIO_PIN_12
-#define PCF8574_GPIO_CLK_ENABLE()          do{ __HAL_RCC_GPIOB_CLK_ENABLE(); }while(0)  /* PB口时钟使能 */
+#define PCF8574_GPIO_PIN                   GPIO_Pin_12
+#define PCF8574_GPIO_CLK_ENABLE()          do{ RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE); }while(0)  /* PB口时钟使能 */
 
 /******************************************************************************************/
 
-#define PCF8574_INT  HAL_GPIO_ReadPin(PCF8574_GPIO_PORT, PCF8574_GPIO_PIN)              /* PCF8574 INT脚 */
+#define PCF8574_INT  GPIO_ReadOutputDataBit(PCF8574_GPIO_PORT, PCF8574_GPIO_PIN)              /* PCF8574 INT脚 */
 
 #define PCF8574_ADDR  0X40      /* PCF8574地址(左移了一位) */
 
@@ -30,11 +39,18 @@
 
 /******************************************************************************************/
 
+typedef struct IIC_Device_t IIC_Device_t; // 前向声明
+extern IIC_Device_t IIC1_PCF8574;  /* IIC设备实例 */
+
 uint8_t pcf8574_init(void); 
-uint8_t pcf8574_read_byte(void); 
-void pcf8574_write_byte(uint8_t data);
-void pcf8574_write_bit(uint8_t bit, uint8_t sta);
-uint8_t pcf8574_read_bit(uint8_t bit);
+void rs485_tx_set(uint8_t en); /* RS485发送模式设置 */
+void IIC_DeviceWriteByte(IIC_Device_t *dev, uint8_t data); /* 写入一个字节 */
+uint8_t IIC_DeviceReadByte(IIC_Device_t *dev, uint8_t *data); /* 读取一个字节 */
+void IIC_DeviceWriteBit(IIC_Device_t *dev, uint8_t bit, uint8_t sta); /* 设置PCF8574某个IO的高低电平 */
+uint8_t IIC_DeviceReadBit(IIC_Device_t *dev, uint8_t bit); /* 读取PCF8574某个IO的高低电平 */
+
+
+
 
 #endif
 

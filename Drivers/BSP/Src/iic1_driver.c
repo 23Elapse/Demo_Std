@@ -2,15 +2,15 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-03-29 17:13:30
+ * @LastEditTime: 2025-03-30 14:53:15
  * @FilePath: \Demo\Drivers\BSP\Src\iic1_driver.c
  * @Description:
  *
  * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved.
  */
-#include "pch.h"
+#include "iic_core.h"
 
-IIC_Device_t IIC_1 = {
+IIC_Device_t IIC1_EEPROM = {
     .instance_id = IIC1,
     .scl_port = IIC1_SCL_GPIO_PORT,
     .scl_pin = IIC1_SCL_PIN,
@@ -46,7 +46,7 @@ static void _sda_config(IIC_Device_t *dev)
  * @retval IIC_Status_t 状态码
  * @note   需在系统时钟初始化后调用，配置GPIO为开漏模式
  */
-IIC_Status IIC1_Init(IIC_Device_t *dev)
+IIC_Status IICx_Init(IIC_Device_t *dev)
 {
     if (!dev->scl_port || !dev->sda_port)
         return IIC_ERR_INIT;
@@ -63,7 +63,7 @@ IIC_Status IIC1_Init(IIC_Device_t *dev)
  * @param  dev: IIC设备实例指针
  * @retval 无
  */
-void IIC_Device1_ResetBus(IIC_Device_t *dev) {
+void IIC_ResetBus(IIC_Device_t *dev) {
     GPIO_InitTypeDef GPIO_InitStruct;
     // 临时将SCL配置为推挽输出
     GPIO_InitStruct.GPIO_Pin = dev->scl_pin;
@@ -87,7 +87,7 @@ void IIC_Device1_ResetBus(IIC_Device_t *dev) {
  * @param  dev: IIC设备实例指针
  * @retval 无
  */
-void IIC_Device1_Start(IIC_Device_t *dev) {
+void IIC_Start(IIC_Device_t *dev) {
     IIC_SDA_1(dev->instance_id);  // 释放SDA
     IIC_SCL_1(dev->instance_id);
     delay_us(5);
@@ -101,7 +101,7 @@ void IIC_Device1_Start(IIC_Device_t *dev) {
  * @param  dev: IIC设备实例指针
  * @retval 无
  */
-void IIC_Device1_Stop(IIC_Device_t *dev) {
+void IIC_Stop(IIC_Device_t *dev) {
     IIC_SDA_0(dev->instance_id);
     IIC_SCL_0(dev->instance_id);
     delay_us(5);
@@ -116,7 +116,7 @@ void IIC_Device1_Stop(IIC_Device_t *dev) {
  * @param  ack: 1-发送ACK，0-发送NACK
  * @retval 读取的数据
  */
-IIC_Status IIC_Device1_ReadByte(IIC_Device_t *dev, uint8_t ack, uint8_t *data) {
+IIC_Status IIC_ReadByte(IIC_Device_t *dev, uint8_t ack, uint8_t *data) {
     uint8_t i = 0;
     IIC_SDA_1(dev->instance_id);  // 释放SDA
     for (i = 0; i < 8; i++) 
@@ -131,7 +131,7 @@ IIC_Status IIC_Device1_ReadByte(IIC_Device_t *dev, uint8_t ack, uint8_t *data) {
         IIC_SCL_0(dev->instance_id);
         delay_us(5);
     }
-    if (ack) 
+    if (!ack) 
     {
         IIC_SDA_0(dev->instance_id);  // 发送ACK
     } 
@@ -152,7 +152,7 @@ IIC_Status IIC_Device1_ReadByte(IIC_Device_t *dev, uint8_t ack, uint8_t *data) {
  * @param  data: 要发送的数据
  * @retval ACK状态
  */
-IIC_Status IIC_Device1_WriteByte(IIC_Device_t *dev, uint8_t data) {
+IIC_Status IIC_WriteByte(IIC_Device_t *dev, uint8_t data) {
     uint8_t i;
     for (i = 0; i < 8; i++) 
     {
@@ -178,28 +178,28 @@ IIC_Status IIC_Device1_WriteByte(IIC_Device_t *dev, uint8_t data) {
 }
 
 /**
- * @brief  IIC发送一个字节到指定寄存器
+ * @brief  IIC读一个字节到指定寄存器
  * @param  dev: IIC设备实例指针
  * @param  reg: 寄存器地址
  * @param  val: 数据
  * @retval 无
  */
-IIC_Status IIC1_ReadByte(IIC_Device_t *dev, uint8_t reg, uint8_t *val)
+IIC_Status IIC1_ReadByteFromReg(IIC_Device_t *dev, uint8_t reg, uint8_t *val)
 {
-    IIC_Device1_Start(dev);
+    IIC_Start(dev);
     //地址处理逻辑与写入一致
     #if (EEPROM_TYPE > AT24C16)
-        IIC_Device1_WriteByte(dev, EEPROM_ADDR);
-        IIC_Device1_WriteByte(dev, reg >> 8);
+        IIC_WriteByte(dev, dev->dev_addr);
+        IIC_WriteByte(dev, reg >> 8);
     #else
-        uint8_t devAddr = EEPROM_ADDR | ((reg >> 7) & 0x0E);
-        I2C_WAIT_WRITE(IIC_Device1_WriteByte(dev, devAddr));
+        uint8_t devAddr = dev->dev_addr | ((reg >> 7) & 0x0E);
+        I2C_WAIT_WRITE(IIC_WriteByte(dev, devAddr));
     #endif
-    I2C_WAIT_WRITE(IIC_Device1_WriteByte(dev, reg & 0xFF));
-    IIC_Device1_Start(dev);                          //重复起始条件
-    I2C_WAIT_WRITE(IIC_Device1_WriteByte(dev, EEPROM_ADDR | 0x01));      //切换到读模式  
-    IIC_Device1_ReadByte(dev, 0, val);               //读取数据（发送NACK结束）
-    IIC_Device1_Stop(dev);
+    I2C_WAIT_WRITE(IIC_WriteByte(dev, reg & 0xFF));
+    IIC_Start(dev);                          //重复起始条件
+    I2C_WAIT_WRITE(IIC_WriteByte(dev, dev->dev_addr | 0x01));      //切换到读模式  
+    IIC_ReadByte(dev, 0, val);               //读取数据（发送NACK结束）
+    IIC_Stop(dev);
 
     return IIC_OK;
 }
@@ -211,21 +211,21 @@ IIC_Status IIC1_ReadByte(IIC_Device_t *dev, uint8_t reg, uint8_t *val)
  * @param  val: 数据
  * @retval 无
  */
-IIC_Status IIC1_WriteByte(IIC_Device_t *dev, uint8_t reg, uint8_t val)
+IIC_Status IIC1_WriteByteToReg(IIC_Device_t *dev, uint8_t reg, uint8_t val)
 {
-    IIC_Device1_Start(dev);
+    IIC_Start(dev);
     //动态生成设备地址（处理容量>2K的情况）
     #if (EEPROM_TYPE > AT24C16)
-        IIC_Device1_WriteByte(dev, EEPROM_ADDR);         //基础设备地址
-        IIC_Device1_WriteByte(dev, reg >> 8);           //发送高8位地址[4,7](@ref)
+        IIC_WriteByte(dev, dev->dev_addr);         //基础设备地址
+        IIC_WriteByte(dev, reg >> 8);           //发送高8位地址[4,7](@ref)
     #else
-        uint8_t devAddr = EEPROM_ADDR | ((reg >> 7) & 0x0E); //24C04/08/16地址处理
-        I2C_WAIT_WRITE(IIC_Device1_WriteByte(dev, devAddr));            //含地址高位的设备地址[1,9](@ref)
+        uint8_t devAddr = dev->dev_addr | ((reg >> 7) & 0x0E); //24C04/08/16地址处理
+        I2C_WAIT_WRITE(IIC_WriteByte(dev, devAddr));            //含地址高位的设备地址[1,9](@ref)
     #endif
-    I2C_WAIT_WRITE(IIC_Device1_WriteByte(dev, reg & 0xFF));             //低8位地址  
-    I2C_WAIT_WRITE(IIC_Device1_WriteByte(dev, val));                    //发送数据
-    IIC_Device1_Stop(dev);
-    IIC_Device1_WaitWriteComplete(dev);                          //等待写入完成
+    I2C_WAIT_WRITE(IIC_WriteByte(dev, reg & 0xFF));             //低8位地址  
+    I2C_WAIT_WRITE(IIC_WriteByte(dev, val));                    //发送数据
+    IIC_Stop(dev);
+    IIC_WaitWriteComplete(dev);                          //等待写入完成
     return IIC_OK;
 }
 
@@ -234,24 +234,24 @@ IIC_Status IIC1_WriteByte(IIC_Device_t *dev, uint8_t reg, uint8_t val)
  * @param  dev: IIC设备实例指针
  * @retval 无
  */
-IIC_Status IIC_Device1_WaitWriteComplete(IIC_Device_t *dev) {
+IIC_Status IIC_WaitWriteComplete(IIC_Device_t *dev) {
     uint16_t timeout = 1000;  // 超时时间
     while (timeout--) {
-        IIC_Device1_Start(dev);
-        if (IIC_Device1_WriteByte(dev, EEPROM_ADDR) == 0) {
-            IIC_Device1_Stop(dev);
+        IIC_Start(dev);
+        if (IIC_WriteByte(dev, dev->dev_addr) == 0) {
+            IIC_Stop(dev);
             return IIC_OK;  // 写入完成
         }
-        IIC_Device1_Stop(dev);
+        IIC_Stop(dev);
         delay_ms(1);
     }
     return IIC_ERR_TIMEOUT;  // 超时
 }
 /* IIC1操作接口实例 */
 const IIC_Ops_t IIC1_Operations = {
-    .Init = IIC1_Init,
-    .ReadByte = IIC1_ReadByte,
-    .WriteByte = IIC1_WriteByte
+    .Init = IICx_Init,
+    .ReadByte = IIC1_ReadByteFromReg,
+    .WriteByte = IIC1_WriteByteToReg
 };
 
 /**
@@ -259,24 +259,43 @@ const IIC_Ops_t IIC1_Operations = {
  * @param  无
  * @retval 无
  */
-void IIC_Device1_INIT(void)
+void IIC_INIT(void)
 {
-    IIC1_Operations.Init(&IIC_1);
+    IIC1_Operations.Init(&IIC1_EEPROM);  //初始化IIC1设备
 }
 /**
  * @brief  检测IIC设备是否存在
  * @param  dev: IIC设备实例指针
+ * @param  dev_type: 设备类型
  * @retval 0: 设备存在，1: 设备不存在
  */
-uint8_t IIC_Device1_Check(IIC_Device_t *dev)
+uint8_t IIC_Check(IIC_Device_t *dev)
 {
-    uint8_t temp;
-    IIC1_Operations.ReadByte(dev, EEPROM_TYPE, &temp);   //读取末地址数据
-    if (temp == 0x55) return 0;                     //已初始化
-    
-    IIC1_Operations.WriteByte(dev, EEPROM_TYPE, 0x55);   //写入测试值
-    IIC1_Operations.ReadByte(dev, EEPROM_TYPE, &temp);
-    return (temp == 0x55) ? 0 : 1;                  //返回检测结果[6,11](@ref)
+    if(!dev->scl_port || !dev->sda_port)
+        return 1;  //设备不存在
+    if(EEPROM_ADDR == dev->dev_addr)
+    {
+        uint8_t temp;
+        IIC1_Operations.ReadByte(dev, EEPROM_TYPE, &temp);   //读取末地址数据
+        if (temp == 0x55) return 0;                     //已初始化
+        
+        IIC1_Operations.WriteByte(dev, EEPROM_TYPE, 0x55);   //写入测试值
+        IIC1_Operations.ReadByte(dev, EEPROM_TYPE, &temp);
+        return (temp == 0x55) ? 0 : 1;                  //返回检测结果[6,11](@ref)
+    }
+    else if(PCF8574_ADDR == dev->dev_addr)
+    {
+        IIC_Start(dev);
+        IIC_WriteByte(dev, dev->dev_addr);
+        IIC_Stop(dev);     
+        IIC_WriteByte(dev, 0XFF);     
+    }
+    else
+    {
+        return 1;  //设备不存在
+    }
+    return 0;
+
 }
 /**
  * @brief  写入多个字节到指定寄存器
@@ -286,7 +305,7 @@ uint8_t IIC_Device1_Check(IIC_Device_t *dev)
  * @param  len: 数据长度
  * @retval 无
  */
-IIC_Status IIC_Device1_Write(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len)
+IIC_Status IIC_Write(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len)
 {
     while (len--) {
         IIC1_Operations.WriteByte(dev, reg++, *buf++);
@@ -301,7 +320,7 @@ IIC_Status IIC_Device1_Write(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint1
  * @param  len: 数据长度
  * @retval 无
  */
-IIC_Status IIC_Device1_Read(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len)
+IIC_Status IIC_Read(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len)
 {
     while (len--) {
         IIC1_Operations.ReadByte(dev, reg++, buf++);

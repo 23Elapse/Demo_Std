@@ -50,13 +50,13 @@ extern RingBuffer tx_buffer;  // 发送缓冲区
 typedef struct {
     USART_TypeDef* USARTx;       // 串口编号（如 USART1, USART2）
     uint32_t BaudRate;           // 波特率
+    uint32_t USART_CLK;          // 串口时钟（如 RCC_APB2Periph_USART1）
     uint16_t USART_Mode;         // 模式（发送、接收或两者）
     uint8_t USART_IRQChannel;    // 中断通道（如 USART1_IRQn）
     uint8_t NVIC_EnableIRQ;      // NVIC 使能
-    uint8_t USART_ITConfig;      // 串口中断配置
-    uint8_t USART_IT;            // 串口中断
-    uint8_t USART_ITPriority;    // 串口中断优先级
-    uint32_t USART_CLK;          // 串口时钟（如 RCC_APB2Periph_USART1）
+    uint8_t NVIC_IRQChannelPreemptionPriority; // NVIC 抢占优先级
+    uint8_t NVIC_IRQChannelSubPriority; // NVIC 子优先级
+    FunctionalState USART_IRQChannelCmd; // NVIC 中断使能
 } USART_ConfigTypeDef;
 
 typedef struct {

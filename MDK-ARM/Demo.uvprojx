@@ -440,6 +440,16 @@
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\iic1_driver.c</FilePath>
             </File>
+            <File>
+              <FileName>pcf8574.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\pcf8574.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_rs485.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\my_rs485.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

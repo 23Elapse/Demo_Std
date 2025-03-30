@@ -59,7 +59,6 @@
     do { \
         status = (cmd); \
         if (--timeout == 0) { \
-            IIC_Device1_ResetBus(dev);  \
             return IIC_ERR_TIMEOUT; \
         } \
     } while (status != IIC_OK); \
@@ -74,7 +73,7 @@ typedef enum {
     IIC_ERR_BUS_BUSY
 } IIC_Status;
 
-typedef struct IIC_Device_t IIC_Device_t;
+typedef struct IIC_Device_t IIC_Device_t; // 前向声明
 struct IIC_Device_t{
     uint8_t instance_id;       // 设备实例标识(IIC1/IIC2)
     GPIO_TypeDef* scl_port;    // SCL端口
@@ -84,9 +83,11 @@ struct IIC_Device_t{
     uint8_t dev_addr;          // 设备地址（7位）
     uint32_t timeout;          // 超时时间
     void* user_data;           // 用户扩展数据
+    
 };
 
-extern IIC_Device_t IIC_1 ;  // IIC1设备实例
+
+extern IIC_Device_t IIC1_EEPROM ;  // IIC1设备实例
 
 /* 操作接口函数指针类型 */
 typedef IIC_Status (*IIC_InitFunc)(struct IIC_Device_t*);
@@ -100,17 +101,15 @@ typedef struct {
     IIC_WriteFunc   WriteByte;
 } IIC_Ops_t;
 
-IIC_Status IIC_Device1_Read(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len);
-IIC_Status IIC_Device1_Write(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len);
-void IIC_Device1_Start(IIC_Device_t *dev);
-void IIC_Device1_Stop(IIC_Device_t *dev);
-IIC_Status IIC_Device1_ReadByte(IIC_Device_t *dev, uint8_t ack, uint8_t *data);
-IIC_Status IIC_Device1_WriteByte(IIC_Device_t *dev, uint8_t data);
-IIC_Status IIC_Device1_WaitWriteComplete(IIC_Device_t *dev);
-IIC_Status IIC_Device1_Write(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len);
-IIC_Status IIC_Device1_Read(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len);
-uint8_t IIC_Device1_Check(IIC_Device_t *dev);
-void IIC_Device1_INIT(void);
-void IIC_Device1_ResetBus(IIC_Device_t *dev);   
+IIC_Status IIC_Read(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len);
+IIC_Status IIC_Write(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len);
+void IIC_Start(IIC_Device_t *dev);
+void IIC_Stop(IIC_Device_t *dev);
+IIC_Status IIC_ReadByte(IIC_Device_t *dev, uint8_t ack, uint8_t *data);
+IIC_Status IIC_WriteByte(IIC_Device_t *dev, uint8_t data);
+IIC_Status IIC_WaitWriteComplete(IIC_Device_t *dev);
+uint8_t IIC_Check(IIC_Device_t *dev);
+void IIC_INIT(void);
+void IIC_ResetBus(IIC_Device_t *dev);   
 
 #endif
