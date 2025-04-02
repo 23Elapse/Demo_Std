@@ -1,7 +1,5 @@
-#include "freertos_demo.h"
-#include "./SYSTEM/Inc/usart.h"
-#include "./BSP/Inc/led.h"
-#include "./BSP/Inc/lcd.h"
+#include "pch.h"
+
 /*FreeRTOS*********************************************************************************************/
 #include "FreeRTOS.h"
 #include "task.h"
@@ -36,9 +34,9 @@ void task2(void *pvParameters);             /* 任务函数 */
 /******************************************************************************************************/
 
 /* LCD刷屏时使用的颜色 */
-uint16_t lcd_discolor[11] = {WHITE, BLACK, BLUE, RED,
-                             MAGENTA, GREEN, CYAN, YELLOW,
-                             BROWN, BRRED, GRAY};
+// uint16_t lcd_discolor[11] = {WHITE, BLACK, BLUE, RED,
+//                              MAGENTA, GREEN, CYAN, YELLOW,
+//                              BROWN, BRRED, GRAY};
 
 /**
  * @brief       FreeRTOS例程入口函数
@@ -47,9 +45,6 @@ uint16_t lcd_discolor[11] = {WHITE, BLACK, BLUE, RED,
  */
 void freertos_demo(void)
 {
-    lcd_show_string(10, 10, 220, 32, 32, "STM32", RED);
-    lcd_show_string(10, 47, 220, 24, 24, "FreeRTOS Porting", RED);
-    lcd_show_string(10, 76, 220, 16, 16, "ATOM@ALIENTEK", RED);
     
     xTaskCreate((TaskFunction_t )start_task,            /* 任务函数 */
                 (const char*    )"start_task",          /* 任务名称 */
@@ -82,6 +77,7 @@ void start_task(void *pvParameters)
                 (void*          )NULL,
                 (UBaseType_t    )TASK2_PRIO,
                 (TaskHandle_t*  )&Task2Task_Handler);
+
     vTaskDelete(StartTask_Handler); /* 删除开始任务 */
     taskEXIT_CRITICAL();            /* 退出临界区 */
 }
@@ -97,10 +93,6 @@ void task1(void *pvParameters)
     
     while(1)
     {
-        lcd_clear(lcd_discolor[++task1_num % 14]);                      /* 刷新屏幕 */
-        lcd_show_string(10, 10, 220, 32, 32, "STM32", RED);
-        lcd_show_string(10, 47, 220, 24, 24, "FreeRTOS Porting", RED);
-        lcd_show_string(10, 76, 220, 16, 16, "ATOM@ALIENTEK", RED);
         LED0_TOGGLE();                                                  /* LED0闪烁 */
         vTaskDelay(1000);                                               /* 延时1000ticks */
     }

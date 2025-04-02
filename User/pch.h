@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-15 20:36:56
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-03-23 18:25:45
+ * @LastEditTime: 2025-04-01 20:51:56
  * @FilePath: \Demo\User\pch.h
  * @Description: 
  * 
@@ -43,6 +43,9 @@
 #include "stm32f4xx_lptim.h"
 #include "stm32f4xx_rtc.h"
 #include "stm32f4xx_spi.h"
+#include "stm32f4xx_it.h"
+#include "FreeRTOS.h"					//FreeRTOS使用		  
+#include "task.h" 
 #include <stdbool.h>
 #include <string.h> // 用于 memcpy 和 memset
 #include <stdint.h>
@@ -62,7 +65,10 @@
 #include "iic_core.h"
 #include "my_rs485.h"
 #include "pcf8574.h"
-
+#include "freertos_demo.h"
+#include "queue.h"
+#include "tsk_wifi.h"
+#include "api_wifi.h"
 
 
 

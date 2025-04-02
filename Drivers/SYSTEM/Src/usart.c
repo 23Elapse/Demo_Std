@@ -69,7 +69,6 @@ void USART_InitWithInterrupt(USART_ConfigTypeDef* USART_Config, GPIO_ConfigTypeD
         USART_ITConfig(USART_Config->USARTx, USART_IT_RXNE, ENABLE);  // 使能接收中断
         USART_ITConfig(USART_Config->USARTx, USART_IT_TXE, DISABLE);  // 默认关闭发送中断
     }
-
     // 8. 使能 USART
     USART_Cmd(USART_Config->USARTx, ENABLE);
 }

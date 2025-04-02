@@ -1,6 +1,4 @@
-// #include "pcf8574.h"
 #include "pch.h"
-// #include "iic_core.h"
 IIC_Device_t IIC1_PCF8574 = {
     .instance_id = IIC1,
     .scl_port = IIC1_SCL_GPIO_PORT,

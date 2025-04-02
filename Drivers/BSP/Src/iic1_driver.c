@@ -262,6 +262,12 @@ const IIC_Ops_t IIC1_Operations = {
 void IIC_INIT(void)
 {
     IIC1_Operations.Init(&IIC1_EEPROM);  //初始化IIC1设备
+    while (IIC_Check(&IIC1_EEPROM))  /* 检测不到 24c02 */ 
+    {
+        printf("AT24CXX Check Failed!\r\n");
+        delay_ms(1000);
+    }
+    printf("AT24CXX Check OK!\r\n");
 }
 /**
  * @brief  检测IIC设备是否存在

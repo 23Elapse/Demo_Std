@@ -21,6 +21,7 @@ void rs485_init(void) {
     RS485_GPIO_Init();
     USART_InitWithInterrupt(&USART2_Config, &GPIO2_Config); // 初始化串口
     
+    
 }
 // 中断服务函数
 void USART2_IRQHandler(void) {

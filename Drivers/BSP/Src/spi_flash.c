@@ -236,7 +236,7 @@ void Flash_init(SPI_Flash_Config* config)
             CS_High(config);
         }
     }
-
+    printf("SPI FLASH Initialized!\r\n");
 }
 
 /**

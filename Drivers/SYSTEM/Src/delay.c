@@ -1,5 +1,4 @@
 #include "pch.h"
-
 static uint16_t  fac_us=0;							//us延时倍乘数			   
 //static uint16_t fac_ms=0;							//ms延时倍乘数,在os下,代表每个节拍的ms数
 void delay_init(uint16_t SYSCLK)
