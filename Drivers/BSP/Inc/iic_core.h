@@ -52,6 +52,36 @@
 //     uint16_t timeout = I2C_TIMEOUT; \
 //     while (cmd) if (--timeout == 0) return I2C_ERROR_TIMEOUT; \
 // } while (0)
+#define SPI_FLASH_WAIT_UNTIL_TIMEOUT(condition)	WAIT_UNTIL_TIMEOUT(condition, 30000);
+
+/**
+ * @brief   等待condition等条件表达式成立，或超时，才退出
+ * @param   condition 等待条件
+ * @param   timeout Timeout duration
+ * @retval  none
+ */
+#define WAIT_UNTIL_TIMEOUT(condition, timeout) \
+({ \
+    int result = 0; \
+    uint32_t tickstart = GetTick(); \
+    /* Wait until flag is set */ \
+    while (!(condition)) \
+    { \
+        if (timeout != SYSTICK_MAX_DELAY) \
+        { \
+            if ((timeout == 0) || ((GetTick() - tickstart) > timeout)) \
+            { \
+                if (timeout != 0) \
+                { \
+                    TBB_WARN("WAIT_UNTIL_TIMEOUT is timeout"); \
+                } \
+                result = -1; \
+                break; \
+            } \
+        } \
+    } \
+    result; \
+})
 
 #define I2C_WAIT_WRITE(cmd) do { \
     uint16_t timeout = I2C_TIMEOUT; \
@@ -64,7 +94,7 @@
     } while (status != IIC_OK); \
 } while (0)
 
-
+//SPI_WAIT_UNTIL_TIMEOUT(RESET != spi_i2s_flag_get(spi_periph,SPI_FLAG_TBE));
 typedef enum {
     IIC_OK = 0,
     IIC_ERR_INIT,
