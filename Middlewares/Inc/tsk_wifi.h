@@ -7,7 +7,6 @@
 
 extern QueueHandle_t cmdQueue;
 
-void vWifiTask(void *pvParameters);
 
 
 #endif

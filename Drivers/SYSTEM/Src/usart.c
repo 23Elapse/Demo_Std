@@ -20,7 +20,7 @@ uint8_t Get_GPIO_PinSource(uint16_t GPIO_Pin) {
     return PinSource;
 }
 
-void USART_InitWithInterrupt(USART_ConfigTypeDef* USART_Config, GPIO_ConfigTypeDef* GPIO_Config) {
+void USARTx_Init(USART_ConfigTypeDef* USART_Config, GPIO_ConfigTypeDef* GPIO_Config) {
     // 1. 使能 GPIO 时钟
     RCC_AHB1PeriphClockCmd(GPIO_Config->GPIO_CLK, ENABLE);
 
@@ -58,7 +58,7 @@ void USART_InitWithInterrupt(USART_ConfigTypeDef* USART_Config, GPIO_ConfigTypeD
     USART_Init(USART_Config->USARTx, &USART_InitStruct);
 
     // 7. 配置 NVIC
-    if(1 == USART_Config->NVIC_EnableIRQ) 
+    if(ENABLE == USART_Config->NVIC_EnableIRQ) 
     {
         NVIC_InitTypeDef NVIC_InitStruct;
         NVIC_InitStruct.NVIC_IRQChannel = USART_Config->USART_IRQChannel;
@@ -72,83 +72,187 @@ void USART_InitWithInterrupt(USART_ConfigTypeDef* USART_Config, GPIO_ConfigTypeD
     // 8. 使能 USART
     USART_Cmd(USART_Config->USARTx, ENABLE);
 }
-// 中断服务函数
-void USART1_IRQHandler(void) {
-    // 接收中断处理
-    if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) {
-        uint8_t data = USART_ReceiveData(USART1);
-        // 将数据存入接收缓冲区
-        uint16_t next = (rx_buffer.head + 1) % RX_BUFFER_SIZE;
-        if (next != rx_buffer.tail) {
-            rx_buffer.buffer[rx_buffer.head] = data;
-            rx_buffer.head = next;
-        }
-        USART_ClearITPendingBit(USART1, USART_IT_RXNE);
-    }
 
-    // 发送中断处理
-    if (USART_GetITStatus(USART1, USART_IT_TXE) != RESET) {
-        if (tx_buffer.head != tx_buffer.tail) {
-            USART_SendData(USART1, tx_buffer.buffer[tx_buffer.tail]);
-            tx_buffer.tail = (tx_buffer.tail + 1) % TX_BUFFER_SIZE;
-        } else {
-            // 缓冲区空，关闭发送中断
-            USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
-        }
-        USART_ClearITPendingBit(USART1, USART_IT_TXE);
+USART_ConfigTypeDef usart_instances[] ={
+    {
+        .USARTx = USART1,
+        .BaudRate = 115200,
+        .USART_CLK = RCC_APB2Periph_USART1,
+        .USART_Mode = USART_Mode_Rx | USART_Mode_Tx,
+        .USART_IRQChannel = USART1_IRQn,
+        .NVIC_EnableIRQ = ENABLE,
+        .NVIC_IRQChannelPreemptionPriority = 0,
+        .NVIC_IRQChannelSubPriority = 0,
+        .USART_IRQChannelCmd = ENABLE,
+        .RxCallback = NULL,
+        .TxCallback = NULL,
+        .rx_ring = {0},
+        .tx_ring = {0}
+    },
+    {
+        .USARTx = USART2,
+        .BaudRate = 115200,
+        .USART_CLK = RCC_APB1Periph_USART2,
+        .USART_Mode = USART_Mode_Rx | USART_Mode_Tx,
+        .USART_IRQChannel = USART2_IRQn,
+        .NVIC_EnableIRQ = ENABLE,
+        .NVIC_IRQChannelPreemptionPriority = 0,
+        .NVIC_IRQChannelSubPriority = 0,
+        .USART_IRQChannelCmd = ENABLE,
+        .RxCallback = NULL,
+        .TxCallback = NULL,
+        .rx_ring = {0},
+        .tx_ring = {0}
+    },
+    {
+        .USARTx = USART6,
+        .BaudRate = 115200,
+        .USART_CLK = RCC_APB2Periph_USART6,
+        .USART_Mode = USART_Mode_Rx | USART_Mode_Tx,
+        .USART_IRQChannel = USART6_IRQn,
+        .NVIC_EnableIRQ = ENABLE,
+        .NVIC_IRQChannelPreemptionPriority = 0,
+        .NVIC_IRQChannelSubPriority = 0,
+        .USART_IRQChannelCmd = ENABLE,
+        .RxCallback = My_RxHandler, // 自定义接收回调函数
+        .TxCallback = NULL,
+        .rx_ring = {0},
+        .tx_ring = {0}
+    }
+};
+#define USART_MAX_NUM           sizeof(usart_instances) / sizeof(USART_ConfigTypeDef)
+GPIO_ConfigTypeDef gpio_instances[] = {
+
+    {
+        .GPIOx_TX = GPIOA,
+        .GPIOx_RX = GPIOA,
+        .GPIO_Pin_TX = GPIO_Pin_9,
+        .GPIO_Pin_RX = GPIO_Pin_10,
+        .GPIO_CLK = RCC_AHB1Periph_GPIOA,
+        .GPIO_AF = GPIO_AF_USART1,
+        .GPIO_PinSource_TX = GPIO_PinSource9,
+        .GPIO_PinSource_RX = GPIO_PinSource10,
+        .GPIO_Mode = GPIO_Mode_AF,
+        .GPIO_Speed = GPIO_Speed_50MHz,
+        .GPIO_OType = GPIO_OType_PP,
+        .GPIO_PuPd = GPIO_PuPd_UP
+    }, // USART1
+    {
+        .GPIOx_TX = GPIOA,
+        .GPIOx_RX = GPIOA,
+        .GPIO_Pin_TX = GPIO_Pin_2,
+        .GPIO_Pin_RX = GPIO_Pin_3,
+        .GPIO_CLK = RCC_AHB1Periph_GPIOA,
+        .GPIO_AF = GPIO_AF_USART2,
+        .GPIO_PinSource_TX = GPIO_PinSource2,
+        .GPIO_PinSource_RX = GPIO_PinSource3,
+        .GPIO_Mode = GPIO_Mode_AF,
+        .GPIO_Speed = GPIO_Speed_50MHz,
+        .GPIO_OType = GPIO_OType_PP,
+        .GPIO_PuPd = GPIO_PuPd_UP
+    }, // USART2
+    {
+        .GPIOx_TX = GPIOC,
+        .GPIOx_RX = GPIOC,
+        .GPIO_Pin_TX = GPIO_Pin_6,
+        .GPIO_Pin_RX = GPIO_Pin_7,
+        .GPIO_CLK = RCC_AHB1Periph_GPIOC,
+        .GPIO_AF = GPIO_AF_USART6,
+        .GPIO_PinSource_TX = GPIO_PinSource6,
+        .GPIO_PinSource_RX = GPIO_PinSource7,
+        .GPIO_Mode = GPIO_Mode_AF,
+        .GPIO_Speed = GPIO_Speed_50MHz,
+        .GPIO_OType = GPIO_OType_PP,
+        .GPIO_PuPd = GPIO_PuPd_UP
+    } // USART6
+};
+#define GPIO_MAX_NUM            sizeof(gpio_instances) / sizeof(GPIO_ConfigTypeDef)
+    
+void My_USART_Init()
+{
+    for (int i = 0; i < USART_MAX_NUM; i++) {
+        USARTx_Init(&usart_instances[i], &gpio_instances[i]);
     }
 }
 
-// 发送字符串（中断方式）
-void USART1_SendString(const char *str) {
-    // 禁用中断防止数据竞争
-    __disable_irq();
-    uint16_t len = strlen(str);
+
+void RingBuffer_Write(RingBuffer* rb, uint8_t* data, uint16_t len) {
     for (uint16_t i = 0; i < len; i++) {
-        uint16_t next = (tx_buffer.head + 1) % TX_BUFFER_SIZE;
-        while (next == tx_buffer.tail); // 等待缓冲区空间
-        tx_buffer.buffer[tx_buffer.head] = str[i];
-        tx_buffer.head = next;
+        if ((rb->head + 1) % RX_BUFFER_SIZE != rb->tail) {
+            rb->buffer[rb->head] = data[i];
+            rb->head = (rb->head + 1) % RX_BUFFER_SIZE;
+        } else {
+            // 溢出处理：丢弃最旧数据
+            rb->tail = (rb->tail + 1) % RX_BUFFER_SIZE;
+        }
     }
-    // 使能发送中断
-    USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
-    __enable_irq();
 }
 
-// 接收数据（非阻塞）
-uint16_t USART1_ReceiveData(uint8_t *buf, uint16_t len) {
-    __disable_irq();
-    uint16_t count = 0;
-    while (rx_buffer.tail != rx_buffer.head && count < len) {
-        buf[count++] = rx_buffer.buffer[rx_buffer.tail];
-        rx_buffer.tail = (rx_buffer.tail + 1) % RX_BUFFER_SIZE;
+uint16_t RingBuffer_Read(RingBuffer* rb, uint8_t* output, uint16_t len) {
+    uint16_t read_len = 0;
+    while (read_len < len && rb->tail != rb->head) {
+        output[read_len++] = rb->buffer[rb->tail];
+        rb->tail = (rb->tail + 1) % RX_BUFFER_SIZE;
     }
-    __enable_irq();
-    return count;
+    return read_len;
 }
 
-USART_ConfigTypeDef USART1_Config = {
-    .USARTx = USART1,
-    .BaudRate = 115200,
-    .USART_Mode = USART_Mode_Rx | USART_Mode_Tx,
-    .USART_IRQChannel = USART1_IRQn,
-    .USART_CLK = RCC_APB2Periph_USART1,
-    .NVIC_EnableIRQ = 0,
-};
+void USART_Generic_IRQHandler(USART_ConfigTypeDef* instance) {
+    if (USART_GetITStatus(instance->USARTx, USART_IT_RXNE) != RESET) {
+        uint8_t data = USART_ReceiveData(instance->USARTx);
+        // 写入接收缓冲区（带溢出保护）
+        if ((instance->rx_ring.head + 1) % RX_BUFFER_SIZE != instance->rx_ring.tail) {
+            instance->rx_ring.buffer[instance->rx_ring.head] = data;
+            instance->rx_ring.head = (instance->rx_ring.head + 1) % RX_BUFFER_SIZE;
+        }
+        // 触发回调（需外部实现）
+        if (instance->RxCallback) {
+            instance->RxCallback(instance->rx_ring.buffer + instance->rx_ring.tail, 1);  // 单字节接收
+        }
+    }
+    
+    // 发送中断处理
+    if (USART_GetITStatus(instance->USARTx, USART_IT_TXE) != RESET) {
+        uint8_t data;
+        if (RingBuffer_Read(&instance->tx_ring, &data, 1) > 0) {
+            USART_SendData(instance->USARTx, data);
+        } else {
+            USART_ITConfig(instance->USARTx, USART_IT_TXE, DISABLE);
+        }
+    }
+}
 
+void USART1_IRQHandler(void) { USART_Generic_IRQHandler(&usart_instances[0]); }
+void USART6_IRQHandler(void) { USART_Generic_IRQHandler(&usart_instances[2]); }
+// 接收回调函数
+void My_RxHandler(uint8_t* data, uint16_t len) {
+    static uint8_t process_buf[RX_BUFFER_SIZE];
+    static uint16_t process_idx = 0;
+    
+    // 将新数据追加到处理缓冲区
+    if (process_idx + len < sizeof(process_buf)) {
+        memcpy(process_buf + process_idx, data, len);
+        process_idx += len;
+        
+        // 示例：每接收10字节触发一次处理
+        if (process_idx >= 10) {
+//            ProcessReceivedData(process_buf, process_idx);
+            process_idx = 0;  // 重置索引
+        }
+    }
+}
 
-GPIO_ConfigTypeDef GPIO1_Config = {
-    .GPIOx_TX = GPIOA,
-    .GPIOx_RX = GPIOA,
-    .GPIO_Pin_TX = GPIO_Pin_9,
-    .GPIO_Pin_RX = GPIO_Pin_10,
-    .GPIO_CLK = RCC_AHB1Periph_GPIOA,
-    .GPIO_AF = GPIO_AF_USART1,
-    .GPIO_PinSource_RX = GPIO_PinSource10,
-    .GPIO_PinSource_TX = GPIO_PinSource9,
-    .GPIO_Mode = GPIO_Mode_AF,
-    .GPIO_Speed = GPIO_Speed_50MHz,
-    .GPIO_OType = GPIO_OType_PP,
-    .GPIO_PuPd = GPIO_PuPd_UP
-};
+//发送函数
+void SendData(USART_ConfigTypeDef* instance, uint8_t* data, uint16_t len) {
+    RingBuffer_Write(&instance->tx_ring, data, len);
+    USART_ITConfig(instance->USARTx, USART_IT_TXE, ENABLE);  // 启动发送中断
+}
 
+// // 发送函数（应用层调用）
+// void SendData(USART_ConfigTypeDef* instance, uint8_t* data, uint16_t len) {
+//     if (instance->tx_ring.head + len < TX_BUFFER_SIZE) {
+//         memcpy(instance->tx_ring.buffer + instance->tx_ring.head, data, len);
+//         instance->tx_ring.head += len;
+//         USART_ITConfig(instance->USARTx, USART_IT_TXE, ENABLE);  // 启动发送中断
+//     }
+// }

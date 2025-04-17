@@ -19,7 +19,7 @@ void rs485_init(void) {
     pcf8574_init(); // 初始化PCF8574，用于控制RE脚
     // 初始化RS485 GPIO
     RS485_GPIO_Init();
-    USART_InitWithInterrupt(&USART2_Config, &GPIO2_Config); // 初始化串口
+    USARTx_Init(&USART2_Config, &GPIO2_Config); // 初始化串口
     
     
 }

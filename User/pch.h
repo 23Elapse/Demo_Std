@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-15 20:36:56
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-01 20:51:56
+ * @LastEditTime: 2025-04-13 16:36:09
  * @FilePath: \Demo\User\pch.h
  * @Description: 
  * 
@@ -69,6 +69,8 @@
 #include "queue.h"
 #include "tsk_wifi.h"
 #include "api_wifi.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 
 

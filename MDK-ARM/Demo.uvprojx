@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F429_439xx,</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Drivers\BSP\Inc;..\Drivers\CMSIS\Device\ST\STM32F4xx\Include;..\Drivers\CMSIS\Include;..\Drivers\STM32F4xx_StdPeriph_Driver\inc;..\Drivers\SYSTEM\Inc;..\User;..\Middlewares\FreeRTOS\include;..\Middlewares\FreeRTOS;..\Middlewares\FreeRTOS\portable\RVDS\ARM_CM4F</IncludePath>
+              <IncludePath>..\Drivers\BSP\Inc;..\Drivers\CMSIS\Device\ST\STM32F4xx\Include;..\Drivers\CMSIS\Include;..\Drivers\STM32F4xx_StdPeriph_Driver\inc;..\Drivers\SYSTEM\Inc;..\User;..\Middlewares\FreeRTOS\include;..\Middlewares\FreeRTOS;..\Middlewares\FreeRTOS\portable\RVDS\ARM_CM4F;..\Middlewares\Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -825,6 +825,21 @@
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Middlewares\FreeRTOS\portable\MemMang\heap_4.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Middlewares</GroupName>
+          <Files>
+            <File>
+              <FileName>api_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\api_wifi.c</FilePath>
+            </File>
+            <File>
+              <FileName>tsk_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\tsk_wifi.c</FilePath>
             </File>
           </Files>
         </Group>
