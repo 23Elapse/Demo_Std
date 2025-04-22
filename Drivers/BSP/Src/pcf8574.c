@@ -35,7 +35,7 @@ uint8_t pcf8574_init(void)
 }
 void rs485_tx_set(uint8_t en)
 {
-    PCF8574_WriteBit(&IIC1_config,RS485_RE_IO, en);
+    PCF8574_WriteBit(IIC1,RS485_RE_IO, en);
 }
 
 /**
@@ -45,11 +45,11 @@ void rs485_tx_set(uint8_t en)
  * @param       sta    : IO的状态;0或1
  * @retval      无
  */
-void PCF8574_WriteBit(IIC_Config_t *IICx, uint8_t bit, uint8_t sta)
+void PCF8574_WriteBit(uint8_t instance_id, uint8_t bit, uint8_t sta)
 {
     uint8_t data = 0;
 
-    PCF8574_ReadByte(IICx, &data);          /* 先读出原来的设置 */
+    PCF8574_ReadByte(instance_id, &data);          /* 先读出原来的设置 */
 
     if (sta == 0)
     {
@@ -60,7 +60,7 @@ void PCF8574_WriteBit(IIC_Config_t *IICx, uint8_t bit, uint8_t sta)
         data |= 1 << bit;
     }
 
-    PCF8574_WriteByte(IICx, data);            /* 写入新的数据 */
+    PCF8574_WriteByte(instance_id, data);            /* 写入新的数据 */
 }
 
 /**
@@ -69,11 +69,11 @@ void PCF8574_WriteBit(IIC_Config_t *IICx, uint8_t bit, uint8_t sta)
  * @param       bit     : 要读取的IO编号, 0~7
  * @retval      此IO口的值(状态, 0/1)
  */
-uint8_t PCF8574_ReadBit(IIC_Config_t *IICx, uint8_t bit)
+uint8_t PCF8574_ReadBit(uint8_t instance_id, uint8_t bit)
 {
     uint8_t data;
 
-    PCF8574_ReadByte(IICx, &data);          /* 先读取这个8位IO的值  */
+    PCF8574_ReadByte(instance_id, &data);          /* 先读取这个8位IO的值  */
 
     if (data & (1 << bit))
     {
@@ -92,12 +92,12 @@ uint8_t PCF8574_ReadBit(IIC_Config_t *IICx, uint8_t bit)
  * @retval      0, 成功;
                 1, 失败;    
  */
-uint8_t PCF8574_ReadByte(IIC_Config_t *IICx, uint8_t *val)
+uint8_t PCF8574_ReadByte(uint8_t instance_id, uint8_t *val)
 { 
-    IIC_Start(IICx);
-    IIC_WriteByte(IICx, PCF8574_ADDR | 0X01);
-    IIC_ReadByte(IICx, 0, val); // 读取数据
-    IIC_Stop(IICx);               /* 产生一个停止条件 */
+    IIC_Start(instance_id);
+    IIC_WriteByte(instance_id, PCF8574_ADDR | 0X01);
+    IIC_ReadByte(instance_id, 0, val); // 读取数据
+    IIC_Stop(instance_id);               /* 产生一个停止条件 */
     return 0;
 }
 
@@ -107,12 +107,12 @@ uint8_t PCF8574_ReadByte(IIC_Config_t *IICx, uint8_t *val)
  * @param       data    : 要写入的数据
  * @retval      无
  */
-void PCF8574_WriteByte(IIC_Config_t *IICx, uint8_t data)
+void PCF8574_WriteByte(uint8_t instance_id, uint8_t data)
 {
-    IIC_Start(IICx);  
-    IIC_WriteByte(IICx, PCF8574_ADDR | 0X00);   /* 发送器件地址0X40,写数据 */
-    IIC_WriteByte(IICx, data);                  /* 发送字节 */
-    IIC_Stop(IICx);                           /* 产生一个停止条件  */
+    IIC_Start(instance_id);  
+    IIC_WriteByte(instance_id, PCF8574_ADDR | 0X00);   /* 发送器件地址0X40,写数据 */
+    IIC_WriteByte(instance_id, data);                  /* 发送字节 */
+    IIC_Stop(instance_id);                           /* 产生一个停止条件  */
     delay_ms(10); 
 }
 

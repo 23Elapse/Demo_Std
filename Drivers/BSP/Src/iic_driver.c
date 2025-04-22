@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-18 20:52:06
+ * @LastEditTime: 2025-04-23 00:07:02
  * @FilePath: \Demo\Drivers\BSP\Src\iic_driver.c
  * @Description: 
  * 
@@ -84,13 +84,13 @@ void IIC_ResetBus(IIC_Config_t *IICx) {
  * @param  IICx: IIC设备实例指针
  * @retval 无
  */
-void IIC_Start(IIC_Config_t *IICx) {
-    IIC_SDA_1(IICx->instance_id);  // 释放SDA
-    IIC_SCL_1(IICx->instance_id);
+void IIC_Start(uint8_t instance_id) {
+    IIC_SDA_1(instance_id);  // 释放SDA
+    IIC_SCL_1(instance_id);
     delay_us(5);
-    IIC_SDA_0(IICx->instance_id);   // SDA拉低
+    IIC_SDA_0(instance_id);   // SDA拉低
     delay_us(5);
-    IIC_SCL_0(IICx->instance_id);  // SCL拉低
+    IIC_SCL_0(instance_id);  // SCL拉低
 }
 
 /**
@@ -98,13 +98,13 @@ void IIC_Start(IIC_Config_t *IICx) {
  * @param  IICx: IIC设备实例指针
  * @retval 无
  */
-void IIC_Stop(IIC_Config_t *IICx) {
-    IIC_SDA_0(IICx->instance_id);
-    IIC_SCL_0(IICx->instance_id);
+void IIC_Stop(uint8_t instance_id) {
+    IIC_SDA_0(instance_id);
+    IIC_SCL_0(instance_id);
     delay_us(5);
-    IIC_SCL_1(IICx->instance_id);
+    IIC_SCL_1(instance_id);
     delay_us(5);
-    IIC_SDA_1(IICx->instance_id);
+    IIC_SDA_1(instance_id);
 }
 
 /**
@@ -113,33 +113,33 @@ void IIC_Stop(IIC_Config_t *IICx) {
  * @param  ack: 1-发送ACK，0-发送NACK
  * @retval 读取的数据
  */
-IIC_Status IIC_ReadByte(IIC_Config_t *IICx, uint8_t ack, uint8_t *data) {
+IIC_Status IIC_ReadByte(uint8_t instance_id, uint8_t ack, uint8_t *data) {
     uint8_t i = 0;
-    IIC_SDA_1(IICx->instance_id);  // 释放SDA
+    IIC_SDA_1(instance_id);  // 释放SDA
     for (i = 0; i < 8; i++) 
     {
-        IIC_SCL_1(IICx->instance_id);
+        IIC_SCL_1(instance_id);
         *data <<= 1;
         delay_us(5);
-        if (IIC_SDA_READ(IICx->instance_id)) 
+        if (IIC_SDA_READ(instance_id)) 
         {
             *data |= 0x01;
         }
-        IIC_SCL_0(IICx->instance_id);
+        IIC_SCL_0(instance_id);
         delay_us(5);
     }
     if (!ack) 
     {
-        IIC_SDA_0(IICx->instance_id);  // 发送ACK
+        IIC_SDA_0(instance_id);  // 发送ACK
     } 
     else 
     {
-        IIC_SDA_1(IICx->instance_id);  // 发送NACK
+        IIC_SDA_1(instance_id);  // 发送NACK
     }
     delay_us(5);
-    IIC_SCL_1(IICx->instance_id);
+    IIC_SCL_1(instance_id);
     delay_us(5);
-    IIC_SCL_0(IICx->instance_id);
+    IIC_SCL_0(instance_id);
     return IIC_OK;
 }
 
@@ -149,27 +149,27 @@ IIC_Status IIC_ReadByte(IIC_Config_t *IICx, uint8_t ack, uint8_t *data) {
  * @param  data: 要发送的数据
  * @retval ACK状态
  */
-IIC_Status IIC_WriteByte(IIC_Config_t *IICx, uint8_t data) {
+IIC_Status IIC_WriteByte(uint8_t instance_id, uint8_t data) {
     uint8_t i;
     for (i = 0; i < 8; i++) 
     {
         if (data & 0x80) {
-            IIC_SDA_1(IICx->instance_id);
+            IIC_SDA_1(instance_id);
         } else {
-            IIC_SDA_0(IICx->instance_id);
+            IIC_SDA_0(instance_id);
         }
         data <<= 1;
-        IIC_SCL_1(IICx->instance_id);
+        IIC_SCL_1(instance_id);
         delay_us(5);
-        IIC_SCL_0(IICx->instance_id);
+        IIC_SCL_0(instance_id);
         delay_us(5);
     }
-    IIC_SDA_1(IICx->instance_id);  // 释放SDA线
+    IIC_SDA_1(instance_id);  // 释放SDA线
     delay_us(5);
-    IIC_SCL_1(IICx->instance_id);
-    uint8_t ack = IIC_SDA_READ(IICx->instance_id);  // 读取ACK
+    IIC_SCL_1(instance_id);
+    uint8_t ack = IIC_SDA_READ(instance_id);  // 读取ACK
     delay_us(5);
-    IIC_SCL_0(IICx->instance_id);
+    IIC_SCL_0(instance_id);
     if (ack == 0) return IIC_OK;
     else return IIC_ERR_NACK;  // 返回枚举值而非整数
 }
@@ -180,15 +180,15 @@ IIC_Status IIC_WriteByte(IIC_Config_t *IICx, uint8_t data) {
  * @param  IICx: IIC设备实例指针
  * @retval 无
  */
-IIC_Status IIC_WaitWriteComplete(IIC_Config_t *IICx, uint8_t dev_addr) {
+IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr) {
     uint16_t timeout = 1000;  // 超时时间
     while (timeout--) {
-        IIC_Start(IICx);
-        if (IIC_WriteByte(IICx, dev_addr) == 0) {
-            IIC_Stop(IICx);
+        IIC_Start(instance_id);
+        if (IIC_WriteByte(instance_id, dev_addr) == 0) {
+            IIC_Stop(instance_id);
             return IIC_OK;  // 写入完成
         }
-        IIC_Stop(IICx);
+        IIC_Stop(instance_id);
         delay_ms(1);
     }
     return IIC_ERR_TIMEOUT;  // 超时
@@ -226,19 +226,19 @@ uint8_t IIC_Check(IIC_Config_t *IICx, IIC_Ops_t *i2c_dev)
     if(EEPROM_ADDR == i2c_dev->dev_addr)
     {
         uint8_t temp;
-        i2c_dev->ReadByte(IICx, EEPROM_TYPE, &temp);   //读取末地址数据
+        i2c_dev->ReadByte(IICx->instance_id, EEPROM_TYPE, &temp);   //读取末地址数据
         if (temp == 0x55) return 0;                     //已初始化
         
-        i2c_dev->WriteByte(IICx, EEPROM_TYPE, 0x55);   //写入测试值
-        i2c_dev->ReadByte(IICx, EEPROM_TYPE, &temp);
+        i2c_dev->WriteByte(IICx->instance_id, EEPROM_TYPE, 0x55);   //写入测试值
+        i2c_dev->ReadByte(IICx->instance_id, EEPROM_TYPE, &temp);
         return (temp == 0x55) ? 0 : 1;                  //返回检测结果[6,11](@ref)
     }
     else if(PCF8574_ADDR == i2c_dev->dev_addr)
     {
-        IIC_Start(IICx);
-        IIC_WriteByte(IICx, i2c_dev->dev_addr);
-        IIC_Stop(IICx);     
-        IIC_WriteByte(IICx, 0XFF);     
+        IIC_Start(IICx->instance_id);
+        IIC_WriteByte(IICx->instance_id, i2c_dev->dev_addr);
+        IIC_Stop(IICx->instance_id);     
+        IIC_WriteByte(IICx->instance_id, 0XFF);     
         return 0;
     }
     else
