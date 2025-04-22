@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-15 20:36:56
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-13 16:36:09
+ * @LastEditTime: 2025-04-20 10:48:39
  * @FilePath: \Demo\User\pch.h
  * @Description: 
  * 
@@ -60,7 +60,7 @@
 #include "btim.h"
 // #include "spi.h"
 #include "spi_flash.h"
-//#include "myiic.h"
+#include "myiic.h"
 //#include "24cxx.h"
 #include "iic_core.h"
 #include "my_rs485.h"
@@ -69,8 +69,14 @@
 #include "queue.h"
 #include "tsk_wifi.h"
 #include "api_wifi.h"
+#include "semphr.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "queue.h"
+#include "api_wifi.h"
+#include "api_eeprom.h"
+// #include "api_flash.h"
+
 
 
 

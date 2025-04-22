@@ -548,7 +548,7 @@ void I2S_StructInit(I2S_InitTypeDef* I2S_InitStruct)
   *          This parameter can be: ENABLE or DISABLE.
   * @retval None
   */
-void SPI_Cmd(SPI_TypeDef* SPIx, FunctionalState NewState)
+void  SPI_Cmd(SPI_TypeDef* SPIx, FunctionalState NewState)
 {
   /* Check the parameters */
   assert_param(IS_SPI_ALL_PERIPH(SPIx));

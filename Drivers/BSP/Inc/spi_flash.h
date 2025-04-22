@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-19 00:03:34
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-03-23 18:40:34
+ * @LastEditTime: 2025-04-20 12:38:57
  * @FilePath: \Demo\Drivers\BSP\Inc\spi_flash.h
  * @Description: spi_flash驱动头文件
  * 
@@ -14,13 +14,18 @@
 #define __SPI_FLASH_H
 #include "pch.h"
 
-#define PAGE_SIZE            256     // 256 bytes per page
-#define SECTOR_SIZE     4 * 1024    // 4 KB per sector
-#define BLOCK_SIZE      64 * 1024   // 64 KB per block
+/* FLASH参数定义 */
+#define PAGE_SIZE             (256U)         // 页大小（256字节）
+#define SECTOR_SIZE           (4U * 1024U)   // 扇区大小（4KB）
+#define BLOCK_SIZE            (64U * 1024U)  // 块大小（64KB）
+/* 超时时间定义（单位循环次数，可调） */
+#define FLASH_TIMEOUT_CNT     (1000000U)
 
-/* 错误状态码 */
+/* FLASH状态码 */
 typedef enum {
-    FLASH_OK,
+    FLASH_OK = 0,
+    FLASH_READ_ERROR,      // 状态寄存器读取失败
+    FLASH_WRITE_DISABLED,  // 写使能失败
     FLASH_TIMEOUT,
     FLASH_VERIFY_ERROR,
     FLASH_WRITE_PROTECTED,
@@ -28,7 +33,9 @@ typedef enum {
     FLASH_INVALID_PARAM,
     FLASH_UNSUPPORTED_CHIP
 } Flash_Status;
-#define STATUS_REG_BUSY               0x01
+
+/* 状态寄存器宏 */
+#define STATUS_REG_BUSY       (0x01U)
 /* SPI指令枚举 */
 typedef enum {
     FLASH_WriteEnable       = 0x06,
@@ -74,18 +81,38 @@ typedef enum {
     NM25Q128 = 0x5217   // NM25Q128 芯片 ID
 } SPI_Flash_ChipID_t;
 
+typedef enum {
+    FLASH_StatusReg1 = 0,  // 状态寄存器1
+    FLASH_StatusReg2,       // 状态寄存器2
+    FLASH_StatusReg3        // 状态寄存器3
+} Flash_StatusReg;
+
+/* 命令码全局常量数组（与枚举顺序严格对应） */
+static const uint8_t g_flash_write_reg_cmd[] = {
+    FLASH_WriteStatusReg1,  // 对应FLASH_StatusReg1
+    FLASH_WriteStatusReg2,   // 对应FLASH_StatusReg2
+    FLASH_WriteStatusReg3    // 对应FLASH_StatusReg3
+};
+static const uint8_t g_flash_read_reg_cmd[] = {
+    FLASH_ReadStatusReg1,
+    FLASH_ReadStatusReg2,
+    FLASH_ReadStatusReg3
+};
+typedef enum {
+    FLASH_3BYTE_MODE,
+    FLASH_4BYTE_MODE
+} Flash_AddressMode;
 /* SPI Flash配置结构体 */
 typedef struct {
-    // 硬件配置参数
     SPI_TypeDef* SPIx;
     GPIO_TypeDef* GPIO_Port;
+    uint32_t SPI_Clk;
+    uint32_t GPIO_Clk;
     uint16_t CS_Pin;
     uint16_t SCK_Pin;
     uint16_t MISO_Pin;
     uint16_t MOSI_Pin;
-    // 时钟配置
-    uint32_t SPI_Clk;
-    uint32_t GPIO_Clk;
+    Flash_AddressMode address_mode; // 新增地址模式字段
 } SPI_Flash_Config;
 
 /* 初始化与基础函数 */

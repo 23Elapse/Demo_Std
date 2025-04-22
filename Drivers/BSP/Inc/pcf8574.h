@@ -25,8 +25,8 @@
 
 #define PCF8574_INT  GPIO_ReadOutputDataBit(PCF8574_GPIO_PORT, PCF8574_GPIO_PIN)              /* PCF8574 INT脚 */
 
-#define PCF8574_ADDR  0X40      /* PCF8574地址(左移了一位) */
 
+#define PCF8574_ADDR  0X40      /* PCF8574地址(左移了一位) */
 /* PCF8574各个IO的功能 */
 #define BEEP_IO         0       /* 蜂鸣器控制引脚        P0 */
 #define AP_INT_IO       1       /* AP3216C中断引脚       P1 */
@@ -39,15 +39,15 @@
 
 /******************************************************************************************/
 
-typedef struct IIC_Device_t IIC_Device_t; // 前向声明
-extern IIC_Device_t IIC1_PCF8574;  /* IIC设备实例 */
+typedef struct IIC_Config_t IIC_Config_t; // 前向声明
+extern IIC_Config_t IIC1_PCF8574;  /* IIC设备实例 */
 
 uint8_t pcf8574_init(void); 
 void rs485_tx_set(uint8_t en); /* RS485发送模式设置 */
-void IIC_DeviceWriteByte(IIC_Device_t *dev, uint8_t data); /* 写入一个字节 */
-uint8_t IIC_DeviceReadByte(IIC_Device_t *dev, uint8_t *data); /* 读取一个字节 */
-void IIC_DeviceWriteBit(IIC_Device_t *dev, uint8_t bit, uint8_t sta); /* 设置PCF8574某个IO的高低电平 */
-uint8_t IIC_DeviceReadBit(IIC_Device_t *dev, uint8_t bit); /* 读取PCF8574某个IO的高低电平 */
+void IIC_DeviceWriteByte(IIC_Config_t *IICx, uint8_t data); /* 写入一个字节 */
+uint8_t IIC_DeviceReadByte(IIC_Config_t *IICx, uint8_t *data); /* 读取一个字节 */
+void IIC_DeviceWriteBit(IIC_Config_t *IICx, uint8_t bit, uint8_t sta); /* 设置PCF8574某个IO的高低电平 */
+uint8_t IIC_DeviceReadBit(IIC_Config_t *IICx, uint8_t bit); /* 读取PCF8574某个IO的高低电平 */
 
 
 

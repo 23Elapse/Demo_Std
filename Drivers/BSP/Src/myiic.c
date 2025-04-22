@@ -120,7 +120,12 @@ uint8_t IIC_ReadByte(IIC_TypeDef *IIC_Struct, uint8_t ack) {
 }
 
 /**
- * @brief 写入一个字节到指定地址
+ * @brief  写入一个字节
+ * @param  dev: IIC设备实例指针
+ * @param  devAddr: 设备地址
+ * @param  regAddr: 寄存器地址
+ * @param  data: 要写入的数据
+ * @retval 无
  */
 void IIC_WriteOneByte(IIC_TypeDef *IIC_Struct, uint8_t devAddr, uint8_t regAddr, uint8_t data) {
     IIC_Start(IIC_Struct);

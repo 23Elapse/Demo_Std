@@ -4,25 +4,11 @@
 #include "pch.h"
 
 #ifdef IIC_DEBUG
-#define LOG_IIC_EVENT(dev, event) printf("[IIC%d] %s\n", dev->instance_id, event)
+#define LOG_IIC_EVENT(IICx, event) printf("[IIC%d] %s\n", IICx->instance_id, event)
 #else
-#define LOG_IIC_EVENT(dev, event)
+#define LOG_IIC_EVENT(IICx, event)
 #endif
-#define EEPROM_TYPE AT24C02  //通过宏定义选择具体型号
-#define EEPROM_ADDR 0xA0     //基础设备地址（A2/A1/A0接地时为0xA0）
 
-#define AT24C01     127
-#define AT24C02     255
-#define AT24C04     511
-#define AT24C08     1023
-#define AT24C16     2047
-#define AT24C32     4095
-#define AT24C64     8191
-#define AT24C128    16383
-#define AT24C256    32767
-
-/* 开发板使用的是24c02，所以定义EE_TYPE为AT24C02 */
-#define EE_TYPE     AT24C02
 
 #define IIC1                  1
 #define IIC2                  2
@@ -54,34 +40,34 @@
 // } while (0)
 #define SPI_FLASH_WAIT_UNTIL_TIMEOUT(condition)	WAIT_UNTIL_TIMEOUT(condition, 30000);
 
-/**
- * @brief   等待condition等条件表达式成立，或超时，才退出
- * @param   condition 等待条件
- * @param   timeout Timeout duration
- * @retval  none
- */
-#define WAIT_UNTIL_TIMEOUT(condition, timeout) \
-({ \
-    int result = 0; \
-    uint32_t tickstart = GetTick(); \
-    /* Wait until flag is set */ \
-    while (!(condition)) \
-    { \
-        if (timeout != SYSTICK_MAX_DELAY) \
-        { \
-            if ((timeout == 0) || ((GetTick() - tickstart) > timeout)) \
-            { \
-                if (timeout != 0) \
-                { \
-                    TBB_WARN("WAIT_UNTIL_TIMEOUT is timeout"); \
-                } \
-                result = -1; \
-                break; \
-            } \
-        } \
-    } \
-    result; \
-})
+// /**
+//  * @brief   等待condition等条件表达式成立，或超时，才退出
+//  * @param   condition 等待条件
+//  * @param   timeout Timeout duration
+//  * @retval  none
+//  */
+// #define WAIT_UNTIL_TIMEOUT(condition, timeout) \
+// ({ \
+//     int result = 0; \
+//     uint32_t tickstart = GetTick(); \
+//     /* Wait until flag is set */ \
+//     while (!(condition)) \
+//     { \
+//         if (timeout != SYSTICK_MAX_DELAY) \
+//         { \
+//             if ((timeout == 0) || ((GetTick() - tickstart) > timeout)) \
+//             { \
+//                 if (timeout != 0) \
+//                 { \
+//                     TBB_WARN("WAIT_UNTIL_TIMEOUT is timeout"); \
+//                 } \
+//                 result = -1; \
+//                 break; \
+//             } \
+//         } \
+//     } \
+//     result; \
+// })
 
 #define I2C_WAIT_WRITE(cmd) do { \
     uint16_t timeout = I2C_TIMEOUT; \
@@ -103,43 +89,35 @@ typedef enum {
     IIC_ERR_BUS_BUSY
 } IIC_Status;
 
-typedef struct IIC_Device_t IIC_Device_t; // 前向声明
-struct IIC_Device_t{
-    uint8_t instance_id;       // 设备实例标识(IIC1/IIC2)
-    GPIO_TypeDef* scl_port;    // SCL端口
-    uint16_t scl_pin;          // SCL引脚
-    GPIO_TypeDef* sda_port;    // SDA端口
-    uint16_t sda_pin;          // SDA引脚
-    uint8_t dev_addr;          // 设备地址（7位）
-    uint32_t timeout;          // 超时时间
-    void* user_data;           // 用户扩展数据
-    
-};
+// typedef struct IIC_Config_t IIC_Config_t; // 前向声明
+typedef struct IIC_Config_t{
+    GPIO_TypeDef* scl_port;   // SCL引脚端口
+    GPIO_TypeDef* sda_port;   // SDA引脚端口
+    uint16_t scl_pin;         // SCL引脚
+    uint16_t sda_pin;         // SDA引脚
+    uint8_t instance_id;      // IIC实例ID
+}IIC_Config_t;
 
 
-extern IIC_Device_t IIC1_EEPROM ;  // IIC1设备实例
+extern IIC_Config_t IIC1_config ;  // IIC1设备实例
 
 /* 操作接口函数指针类型 */
-typedef IIC_Status (*IIC_InitFunc)(struct IIC_Device_t*);
-typedef IIC_Status (*IIC_ReadFunc)(struct IIC_Device_t*, uint8_t reg, uint8_t* val);
-typedef IIC_Status (*IIC_WriteFunc)(struct IIC_Device_t*, uint8_t reg, uint8_t val);
+typedef IIC_Status (*IIC_ReadFunc)(struct IIC_Config_t*, uint8_t reg, uint8_t* val);
+typedef IIC_Status (*IIC_WriteFunc)(struct IIC_Config_t*, uint8_t reg, uint8_t val);
 
 /* 统一操作接口结构体 */
 typedef struct {
-    IIC_InitFunc    Init;
     IIC_ReadFunc    ReadByte;
     IIC_WriteFunc   WriteByte;
+    uint8_t dev_addr;          // 设备地址（7位）
 } IIC_Ops_t;
 
-IIC_Status IIC_Read(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len);
-IIC_Status IIC_Write(IIC_Device_t *dev, uint8_t reg, uint8_t *buf, uint16_t len);
-void IIC_Start(IIC_Device_t *dev);
-void IIC_Stop(IIC_Device_t *dev);
-IIC_Status IIC_ReadByte(IIC_Device_t *dev, uint8_t ack, uint8_t *data);
-IIC_Status IIC_WriteByte(IIC_Device_t *dev, uint8_t data);
-IIC_Status IIC_WaitWriteComplete(IIC_Device_t *dev);
-uint8_t IIC_Check(IIC_Device_t *dev);
+void IIC_Start(IIC_Config_t *IICx);
+void IIC_Stop(IIC_Config_t *IICx);
+IIC_Status IICx_Init(IIC_Config_t *IICx);
+IIC_Status IIC_ReadByte(IIC_Config_t *IICx, uint8_t ack, uint8_t *data);
+IIC_Status IIC_WriteByte(IIC_Config_t *IICx, uint8_t data);
 void IIC_INIT(void);
-void IIC_ResetBus(IIC_Device_t *dev);   
+void IIC_ResetBus(IIC_Config_t *IICx);   
 
 #endif

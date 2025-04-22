@@ -2,16 +2,24 @@
 Author: 23Elapse userszy@163.com
 Date: 2025-04-21 19:10:23
 LastEditors: 23Elapse userszy@163.com
-LastEditTime: 2025-04-21 20:55:47
-FilePath: d:\code\copy.py
+LastEditTime: 2025-04-21 21:24:31
+FilePath: \Demod:\code\copy.py
 Description: 
 
-Copyright (c) 2025 by ${23Elapse userszy@163.com}, All Rights Reserved. 
+Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved. 
 '''
-
 import os
 from tqdm import tqdm
+import sys
+import io
 
+# 修复标准流编码
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+# 设置 tqdm 进度条为 Unicode 模式
+from tqdm import tqdm
+os.environ["TQDM_ASCII"] = "False"  # 强制使用 Unicode 符号
 def copy_folder_by_reading_with_progress(source_folder):
     # 自动生成目标文件夹名，加 "_backup"
     parent_dir = os.path.dirname(source_folder)
