@@ -21,6 +21,8 @@ uint8_t Get_GPIO_PinSource(uint16_t GPIO_Pin) {
 }
 
 void USARTx_Init(USART_ConfigTypeDef* USART_Config, GPIO_ConfigTypeDef* GPIO_Config) {
+
+
     // 1. 使能 GPIO 时钟
     RCC_AHB1PeriphClockCmd(GPIO_Config->GPIO_CLK, ENABLE);
 
@@ -176,54 +178,54 @@ void My_USART_Init()
 }
 
 
-void RingBuffer_Write(RingBuffer* rb, uint8_t* data, uint16_t len) {
-    for (uint16_t i = 0; i < len; i++) {
-        if ((rb->head + 1) % RX_BUFFER_SIZE != rb->tail) {
-            rb->buffer[rb->head] = data[i];
-            rb->head = (rb->head + 1) % RX_BUFFER_SIZE;
-        } else {
-            // 溢出处理：丢弃最旧数据
-            rb->tail = (rb->tail + 1) % RX_BUFFER_SIZE;
-        }
-    }
-}
+//void RingBuffer_Write(RingBuffer* rb, uint8_t* data, uint16_t len) {
+//    for (uint16_t i = 0; i < len; i++) {
+//        if ((rb->head + 1) % RX_BUFFER_SIZE != rb->tail) {
+//            rb->buffer[rb->head] = data[i];
+//            rb->head = (rb->head + 1) % RX_BUFFER_SIZE;
+//        } else {
+//            // 溢出处理：丢弃最旧数据
+//            rb->tail = (rb->tail + 1) % RX_BUFFER_SIZE;
+//        }
+//    }
+//}
 
-uint16_t RingBuffer_Read(RingBuffer* rb, uint8_t* output, uint16_t len) {
-    uint16_t read_len = 0;
-    while (read_len < len && rb->tail != rb->head) {
-        output[read_len++] = rb->buffer[rb->tail];
-        rb->tail = (rb->tail + 1) % RX_BUFFER_SIZE;
-    }
-    return read_len;
-}
+//uint16_t RingBuffer_Read(RingBuffer* rb, uint8_t* output, uint16_t len) {
+//    uint16_t read_len = 0;
+//    while (read_len < len && rb->tail != rb->head) {
+//        output[read_len++] = rb->buffer[rb->tail];
+//        rb->tail = (rb->tail + 1) % RX_BUFFER_SIZE;
+//    }
+//    return read_len;
+//}
 
-void USART_Generic_IRQHandler(USART_ConfigTypeDef* instance) {
-    if (USART_GetITStatus(instance->USARTx, USART_IT_RXNE) != RESET) {
-        uint8_t data = USART_ReceiveData(instance->USARTx);
-        // 写入接收缓冲区（带溢出保护）
-        if ((instance->rx_ring.head + 1) % RX_BUFFER_SIZE != instance->rx_ring.tail) {
-            instance->rx_ring.buffer[instance->rx_ring.head] = data;
-            instance->rx_ring.head = (instance->rx_ring.head + 1) % RX_BUFFER_SIZE;
-        }
-        // 触发回调（需外部实现）
-        if (instance->RxCallback) {
-            instance->RxCallback(instance->rx_ring.buffer + instance->rx_ring.tail, 1);  // 单字节接收
-        }
-    }
-    
-    // 发送中断处理
-    if (USART_GetITStatus(instance->USARTx, USART_IT_TXE) != RESET) {
-        uint8_t data;
-        if (RingBuffer_Read(&instance->tx_ring, &data, 1) > 0) {
-            USART_SendData(instance->USARTx, data);
-        } else {
-            USART_ITConfig(instance->USARTx, USART_IT_TXE, DISABLE);
-        }
-    }
-}
+//void USART_Generic_IRQHandler(USART_ConfigTypeDef* instance) {
+//    if (USART_GetITStatus(instance->USARTx, USART_IT_RXNE) != RESET) {
+//        uint8_t data = USART_ReceiveData(instance->USARTx);
+//        // 写入接收缓冲区（带溢出保护）
+//        if ((instance->rx_ring.head + 1) % RX_BUFFER_SIZE != instance->rx_ring.tail) {
+//            instance->rx_ring.buffer[instance->rx_ring.head] = data;
+//            instance->rx_ring.head = (instance->rx_ring.head + 1) % RX_BUFFER_SIZE;
+//        }
+//        // 触发回调（需外部实现）
+//        if (instance->RxCallback) {
+//            instance->RxCallback(instance->rx_ring.buffer + instance->rx_ring.tail, 1);  // 单字节接收
+//        }
+//    }
+//    
+//    // 发送中断处理
+//    if (USART_GetITStatus(instance->USARTx, USART_IT_TXE) != RESET) {
+//        uint8_t data;
+//        if (RingBuffer_Read(&instance->tx_ring, &data, 1) > 0) {
+//            USART_SendData(instance->USARTx, data);
+//        } else {
+//            USART_ITConfig(instance->USARTx, USART_IT_TXE, DISABLE);
+//        }
+//    }
+//}
 
-void USART1_IRQHandler(void) { USART_Generic_IRQHandler(&usart_instances[0]); }
-void USART6_IRQHandler(void) { USART_Generic_IRQHandler(&usart_instances[2]); }
+//void USART1_IRQHandler(void) { USART_Generic_IRQHandler(&usart_instances[0]); }
+//void USART6_IRQHandler(void) { USART_Generic_IRQHandler(&usart_instances[2]); }
 // 接收回调函数
 void My_RxHandler(uint8_t* data, uint16_t len) {
     static uint8_t process_buf[RX_BUFFER_SIZE];
@@ -243,10 +245,10 @@ void My_RxHandler(uint8_t* data, uint16_t len) {
 }
 
 //发送函数
-void SendData(USART_ConfigTypeDef* instance, uint8_t* data, uint16_t len) {
-    RingBuffer_Write(&instance->tx_ring, data, len);
-    USART_ITConfig(instance->USARTx, USART_IT_TXE, ENABLE);  // 启动发送中断
-}
+//void SendData(USART_ConfigTypeDef* instance, uint8_t* data, uint16_t len) {
+//    RingBuffer_Write(&instance->tx_ring, data, len);
+//    USART_ITConfig(instance->USARTx, USART_IT_TXE, ENABLE);  // 启动发送中断
+//}
 
 // // 发送函数（应用层调用）
 // void SendData(USART_ConfigTypeDef* instance, uint8_t* data, uint16_t len) {

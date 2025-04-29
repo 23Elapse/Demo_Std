@@ -62,6 +62,7 @@ typedef struct {
     void (*TxCallback)(uint8_t* data, uint16_t len);  // 发送完成回调
     RingBuffer rx_ring;  // 静态接收缓冲区
     RingBuffer tx_ring;  // 静态发送缓冲区
+//    RingBuffer_t* rx_buffer;  // 动态接收缓冲区
 } USART_ConfigTypeDef;
 
 typedef struct {

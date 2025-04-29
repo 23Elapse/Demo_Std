@@ -2,17 +2,15 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-19 00:03:34
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-20 12:38:57
+ * @LastEditTime: 2025-04-29 09:59:35
  * @FilePath: \Demo\Drivers\BSP\Inc\spi_flash.h
- * @Description: spi_flash驱动头文件
+ * @Description: 
  * 
- * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved. 
  */
-/* spi_flash.h */
 
 #ifndef __SPI_FLASH_H
 #define __SPI_FLASH_H
-#include "pch.h"
 
 /* FLASH参数定义 */
 #define PAGE_SIZE             (256U)         // 页大小（256字节）
@@ -121,21 +119,19 @@ static void CS_Low(SPI_Flash_Config* config);
 static void CS_High(SPI_Flash_Config* config);
 static void SendAddress(SPI_Flash_Config* config, uint32_t addr);
 static Flash_Status WriteEnable(SPI_Flash_Config* config);
-// static void Flash_Wait_Busy(SPI_Flash_Config* config);
+
 static Flash_Status CheckBusy(SPI_Flash_Config* config);
-Flash_Status SPI_Flash_EnableWriteProtect(SPI_Flash_Config* config, bool enable);
-uint8_t SPI_Flash_ReadStatusReg(SPI_Flash_Config* config, uint8_t regNum);
-void SPI_Flash_WriteStatusReg(SPI_Flash_Config* config, uint8_t regNum, uint8_t sr);
-Flash_Status SPI_Flash_SetBlockProtection(SPI_Flash_Config* config, uint8_t protectLevel);
+
 void SPI_Flash_Init(SPI_Flash_Config* config);
-void Flash_init(SPI_Flash_Config* config);
+
 Flash_Status SPI_Flash_EraseSector(SPI_Flash_Config* config, uint32_t sectorAddr);
 Flash_Status SPI_Flash_EraseChip(SPI_Flash_Config* config);
 Flash_Status SPI_Flash_WritePage(SPI_Flash_Config* config, uint8_t* pBuffer, uint32_t writeAddr, uint16_t numByteToWrite);
 Flash_Status SPI_Flash_ReadData(SPI_Flash_Config* config, uint8_t* pBuffer, uint32_t readAddr, uint16_t numByteToRead);
 uint16_t Flash_Read_Id(SPI_Flash_Config* config);
 int8_t SPI_Flash_Write_With_Erase(SPI_Flash_Config* config, uint8_t *pbuf, uint32_t addr, uint16_t datalen);
-
+Flash_Status SPI_Flash_WriteStatusReg(SPI_Flash_Config* config, Flash_StatusReg reg, uint8_t sr);
+uint8_t SPI_Flash_ReadStatusReg(SPI_Flash_Config* config, Flash_StatusReg reg);
 
 extern SPI_Flash_Config flash_cfg;
 

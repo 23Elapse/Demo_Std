@@ -2,14 +2,14 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-23 00:07:02
+ * @LastEditTime: 2025-04-27 19:44:20
  * @FilePath: \Demo\Drivers\BSP\Src\iic_driver.c
  * @Description: 
  * 
  * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
  */
 #include "iic_core.h"
-
+#include "pch.h"
 IIC_Config_t IIC1_config = {
     .instance_id = IIC1,
     .scl_port = IIC1_SCL_GPIO_PORT,
@@ -219,18 +219,18 @@ void IIC_INIT(void)
  * @param  i2c_dev: 设备类型
  * @retval 0: 设备存在，1: 设备不存在
  */
-uint8_t IIC_Check(IIC_Config_t *IICx, IIC_Ops_t *i2c_dev)
+uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
 {
     if(!IICx->scl_port || !IICx->sda_port)
         return 1;  //设备不存在
     if(EEPROM_ADDR == i2c_dev->dev_addr)
     {
         uint8_t temp;
-        i2c_dev->ReadByte(IICx->instance_id, EEPROM_TYPE, &temp);   //读取末地址数据
+        i2c_dev->ReadByte(EEPROM_TYPE, &temp);   //读取末地址数据
         if (temp == 0x55) return 0;                     //已初始化
         
-        i2c_dev->WriteByte(IICx->instance_id, EEPROM_TYPE, 0x55);   //写入测试值
-        i2c_dev->ReadByte(IICx->instance_id, EEPROM_TYPE, &temp);
+        i2c_dev->WriteByte(EEPROM_TYPE, 0x55);   //写入测试值
+        i2c_dev->ReadByte(EEPROM_TYPE, &temp);
         return (temp == 0x55) ? 0 : 1;                  //返回检测结果[6,11](@ref)
     }
     else if(PCF8574_ADDR == i2c_dev->dev_addr)
@@ -255,10 +255,10 @@ uint8_t IIC_Check(IIC_Config_t *IICx, IIC_Ops_t *i2c_dev)
  * @param  len: 数据长度
  * @retval 无
  */
-IIC_Status IICx_DevWrite(IIC_Config_t *IICx, IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t len)
+IIC_Status IICx_DevWrite(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t len)
 {
     while (len--) {
-        i2c_dev->WriteByte(IICx, reg++, *buf++);
+        i2c_dev->WriteByte(reg++, *buf++);
     }
     return IIC_OK;
 }
@@ -270,10 +270,10 @@ IIC_Status IICx_DevWrite(IIC_Config_t *IICx, IIC_Ops_t *i2c_dev, uint8_t reg, ui
  * @param  len: 数据长度
  * @retval 无
  */
-IIC_Status IICx_DevRead(IIC_Config_t *IICx, IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t len)
+IIC_Status IICx_DevRead(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t len)
 {
     while (len--) {
-        i2c_dev->ReadByte(IICx, reg++, buf++);
+        i2c_dev->ReadByte(reg++, buf++);
     }
     return IIC_OK;
 }

@@ -1,7 +1,9 @@
 #ifndef __IIC_CORE_H
 #define __IIC_CORE_H
 
-#include "pch.h"
+#include "stm32f4xx.h"
+#include "stdint.h"
+#include "stdbool.h"
 
 #ifdef IIC_DEBUG
 #define LOG_IIC_EVENT(IICx, event) printf("[IIC%d] %s\n", IICx->instance_id, event)
@@ -40,34 +42,6 @@
 // } while (0)
 #define SPI_FLASH_WAIT_UNTIL_TIMEOUT(condition)	WAIT_UNTIL_TIMEOUT(condition, 30000);
 
-// /**
-//  * @brief   等待condition等条件表达式成立，或超时，才退出
-//  * @param   condition 等待条件
-//  * @param   timeout Timeout duration
-//  * @retval  none
-//  */
-// #define WAIT_UNTIL_TIMEOUT(condition, timeout) \
-// ({ \
-//     int result = 0; \
-//     uint32_t tickstart = GetTick(); \
-//     /* Wait until flag is set */ \
-//     while (!(condition)) \
-//     { \
-//         if (timeout != SYSTICK_MAX_DELAY) \
-//         { \
-//             if ((timeout == 0) || ((GetTick() - tickstart) > timeout)) \
-//             { \
-//                 if (timeout != 0) \
-//                 { \
-//                     TBB_WARN("WAIT_UNTIL_TIMEOUT is timeout"); \
-//                 } \
-//                 result = -1; \
-//                 break; \
-//             } \
-//         } \
-//     } \
-//     result; \
-// })
 
 #define I2C_WAIT_WRITE(cmd) do { \
     uint16_t timeout = I2C_TIMEOUT; \
@@ -80,7 +54,7 @@
     } while (status != IIC_OK); \
 } while (0)
 
-//SPI_WAIT_UNTIL_TIMEOUT(RESET != spi_i2s_flag_get(spi_periph,SPI_FLAG_TBE));
+
 typedef enum {
     IIC_OK = 0,
     IIC_ERR_INIT,
@@ -102,8 +76,8 @@ typedef struct IIC_Config_t{
 extern IIC_Config_t IIC1_config ;  // IIC1设备实例
 
 /* 操作接口函数指针类型 */
-typedef IIC_Status (*IIC_ReadFunc)(struct IIC_Config_t*, uint8_t reg, uint8_t* val);
-typedef IIC_Status (*IIC_WriteFunc)(struct IIC_Config_t*, uint8_t reg, uint8_t val);
+typedef IIC_Status (*IIC_ReadFunc)(uint8_t reg, uint8_t* val);
+typedef IIC_Status (*IIC_WriteFunc)(uint8_t reg, uint8_t val);
 
 /* 统一操作接口结构体 */
 typedef struct {
@@ -111,13 +85,15 @@ typedef struct {
     IIC_WriteFunc   WriteByte;
     uint8_t dev_addr;          // 设备地址（7位）
 } IIC_Ops_t;
-
-void IIC_Start(IIC_Config_t *IICx);
-void IIC_Stop(IIC_Config_t *IICx);
+extern const IIC_Ops_t IIC1_EEPROM;
+void IIC_Start(uint8_t instance_id);
+void IIC_Stop(uint8_t instance_id);
 IIC_Status IICx_Init(IIC_Config_t *IICx);
-IIC_Status IIC_ReadByte(IIC_Config_t *IICx, uint8_t ack, uint8_t *data);
-IIC_Status IIC_WriteByte(IIC_Config_t *IICx, uint8_t data);
+IIC_Status IIC_ReadByte(uint8_t instance_id, uint8_t ack, uint8_t *data);
+IIC_Status IIC_WriteByte(uint8_t instance_id, uint8_t data);
+uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev);
 void IIC_INIT(void);
 void IIC_ResetBus(IIC_Config_t *IICx);   
+IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr);
 
 #endif

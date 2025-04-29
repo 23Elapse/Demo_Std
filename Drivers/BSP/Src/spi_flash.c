@@ -1,5 +1,5 @@
 #include "pch.h"
-
+#include "spi_flash.h"
 #define flash_timecnt 1000000  // 超时计数器
 uint16_t g_norflash_type = BY25Q256;                            /* 默认是BY25Q256 */
 static uint8_t sector_buf[SECTOR_SIZE]; /* 扇区缓冲区 */
@@ -18,13 +18,6 @@ static void CS_High(SPI_Flash_Config* config)
     GPIO_SetBits(config->GPIO_Port, config->CS_Pin);
 }
 
-// uint8_t SPI_Flash_Transfer(SPI_Flash_Config* config, uint8_t data)
-// {
-//     while (!(config->SPIx->SR & SPI_SR_TXE));
-//     *((__IO uint8_t *)&config->SPIx->DR) = data;
-//     while (!(config->SPIx->SR & SPI_SR_RXNE));
-//     return *((__IO uint8_t *)&config->SPIx->DR);
-// }
 
 uint8_t SPI_Flash_Transfer(SPI_Flash_Config* config, uint8_t data)
 {
@@ -37,12 +30,6 @@ uint8_t SPI_Flash_Transfer(SPI_Flash_Config* config, uint8_t data)
 
 
 /*--------------------- 基础协议操作函数 ---------------------*/
-// static void SendAddress(SPI_Flash_Config* config, uint32_t addr)
-// {
-//     SPI_Flash_Transfer(config, (addr >> 16) & 0xFF);
-//     SPI_Flash_Transfer(config, (addr >> 8) & 0xFF);
-//     SPI_Flash_Transfer(config, addr & 0xFF);
-// }
 /* 发送24位地址 */
 static void SendAddress(SPI_Flash_Config* config, uint32_t addr)
 {
@@ -164,7 +151,6 @@ void W25Qxx_init(SPI_Flash_Config* config)
         printf("Failed to take flash mutex\r\n");
         return;
     }
-    // if()
     SPI_Flash_Init(config);
     g_norflash_type = Flash_Read_Id(config);     // 读取flash ID
     printf("flash read id is : %d\r\n", g_norflash_type);
@@ -185,13 +171,6 @@ void W25Qxx_init(SPI_Flash_Config* config)
     }
     printf("SPI FLASH Initialized!\r\n");
 }
-
-
-// static void Flash_Wait_Busy(SPI_Flash_Config* config)
-// {
-//     while ((SPI_Flash_ReadStatusReg(config, 1) & 0x01) == 0x01);               /* 等待BUSY位清空 */
-// }
-
 
 /* 定义设备配置 */
 SPI_Flash_Config flash_cfg = {
@@ -235,37 +214,6 @@ Flash_Status SPI_Flash_WriteStatusReg(SPI_Flash_Config* config, Flash_StatusReg 
     return CheckBusy(config);
 }
 
-// Flash_Status SPI_Flash_EnableWriteProtect(SPI_Flash_Config* config, bool enable)
-// {
-//     uint8_t sr = SPI_Flash_ReadStatusReg(config, FLASH_StatusReg1);
-//     if (sr == 0xFF) return FLASH_READ_ERROR; // 读取状态寄存器失败
-//     return SPI_Flash_WriteStatusReg(config, FLASH_StatusReg1, enable ? (sr | 0x80) : (sr & ~0x80));
-// }
-
-// Flash_Status SPI_Flash_SetBlockProtection(SPI_Flash_Config* config, uint8_t protectLevel)
-// {
-//     uint8_t sr = SPI_Flash_ReadStatusReg(config, FLASH_StatusReg1);
-//     sr &= ~(0x1C);
-//     sr |= ((protectLevel & 0x07) << 2);
-//     SPI_Flash_WriteStatusReg(config, FLASH_StatusReg1, sr);
-
-//     return SPI_Flash_WriteStatusReg(config, FLASH_StatusReg1, sr);
-// }
-
-
-// void SPI_Enter4ByteMode(SPI_Flash_Config* config) {
-//     // 拉低CS引脚
-//     GPIO_ResetBits(config->GPIO_Port, config->CS_Pin);
-    
-//     // 发送命令0x37（具体指令需参考芯片手册）
-//     uint8_t cmd = FLASH_Enable4ByteAddr;
-//     SPI_SendData(config->SPIx, cmd);
-    
-//     // 拉高CS引脚
-//     GPIO_SetBits(config->GPIO_Port, config->CS_Pin);
-// }
-
-
 /*--------------------- 存储单元操作函数 ---------------------*/
 Flash_Status SPI_Flash_EraseSector(SPI_Flash_Config* config, uint32_t sectorAddr)
 {
@@ -290,19 +238,19 @@ Flash_Status SPI_Flash_EraseSector(SPI_Flash_Config* config, uint32_t sectorAddr
  * @param       saddr : 扇区地址 根据实际容量设置
  * @retval      无
  */
-Flash_Status SPI_Flash_EraseSector(SPI_Flash_Config* config, uint32_t sectorAddr)
-{
-    if(config == NULL) return FLASH_INVALID_PARAM;
-    if((sectorAddr % (4 * 1024)) != 0) return FLASH_INVALID_PARAM;
+//Flash_Status SPI_Flash_EraseSector(SPI_Flash_Config* config, uint32_t sectorAddr)
+//{
+//    if(config == NULL) return FLASH_INVALID_PARAM;
+//    if((sectorAddr % (4 * 1024)) != 0) return FLASH_INVALID_PARAM;
 
-    Flash_Status status = WriteEnable(config);
-    if(status != FLASH_OK) return status;
-    CS_Low(config);
-    SPI_Flash_Transfer(config, FLASH_SectorErase);
-    SendAddress(config, sectorAddr);
-    CS_High(config);
-    return CheckBusy(config);
-}
+//    Flash_Status status = WriteEnable(config);
+//    if(status != FLASH_OK) return status;
+//    CS_Low(config);
+//    SPI_Flash_Transfer(config, FLASH_SectorErase);
+//    SendAddress(config, sectorAddr);
+//    CS_High(config);
+//    return CheckBusy(config);
+//}
 
 Flash_Status SPI_Flash_EraseChip(SPI_Flash_Config* config)
 {
@@ -364,52 +312,52 @@ Flash_Status SPI_Flash_ReadData(SPI_Flash_Config* config, uint8_t* pBuffer, uint
  * @param       无
  * @retval      无
  */
-Flash_Status SPI_Flash_EraseChip(SPI_Flash_Config* config)
-{
-    if(config == NULL) return FLASH_INVALID_PARAM;
+//Flash_Status SPI_Flash_EraseChip(SPI_Flash_Config* config)
+//{
+//    if(config == NULL) return FLASH_INVALID_PARAM;
 
-    Flash_Status status = WriteEnable(config);
-    if(status != FLASH_OK) return status;
-    CS_Low(config);
-    SPI_Flash_Transfer(config, FLASH_ChipErase);
-    CS_High(config);
-    return CheckBusy(config);
-}
+//    Flash_Status status = WriteEnable(config);
+//    if(status != FLASH_OK) return status;
+//    CS_Low(config);
+//    SPI_Flash_Transfer(config, FLASH_ChipErase);
+//    CS_High(config);
+//    return CheckBusy(config);
+//}
 
-Flash_Status SPI_Flash_WritePage(SPI_Flash_Config* config, uint8_t* pBuffer, uint32_t writeAddr, uint16_t numByteToWrite)
-{
-    if(config == NULL || pBuffer == NULL || numByteToWrite == 0) 
-        return FLASH_INVALID_PARAM;
+//Flash_Status SPI_Flash_WritePage(SPI_Flash_Config* config, uint8_t* pBuffer, uint32_t writeAddr, uint16_t numByteToWrite)
+//{
+//    if(config == NULL || pBuffer == NULL || numByteToWrite == 0) 
+//        return FLASH_INVALID_PARAM;
 
-    Flash_Status status = WriteEnable(config);
-    if(status != FLASH_OK) return status;
+//    Flash_Status status = WriteEnable(config);
+//    if(status != FLASH_OK) return status;
 
-    CS_Low(config);
-    SPI_Flash_Transfer(config, FLASH_PageProgram);
-    SendAddress(config, writeAddr);
-    for(uint16_t i=0; i<numByteToWrite; i++) {
-        SPI_Flash_Transfer(config, pBuffer[i]);
-    }
-    CS_High(config);
+//    CS_Low(config);
+//    SPI_Flash_Transfer(config, FLASH_PageProgram);
+//    SendAddress(config, writeAddr);
+//    for(uint16_t i=0; i<numByteToWrite; i++) {
+//        SPI_Flash_Transfer(config, pBuffer[i]);
+//    }
+//    CS_High(config);
 
-    return CheckBusy(config);
-}
+//    return CheckBusy(config);
+//}
 
-Flash_Status SPI_Flash_ReadData(SPI_Flash_Config* config, uint8_t* pBuffer, uint32_t readAddr, uint16_t numByteToRead)
-{
-    if(config == NULL || pBuffer == NULL || numByteToRead == 0) 
-        return FLASH_INVALID_PARAM;
+//Flash_Status SPI_Flash_ReadData(SPI_Flash_Config* config, uint8_t* pBuffer, uint32_t readAddr, uint16_t numByteToRead)
+//{
+//    if(config == NULL || pBuffer == NULL || numByteToRead == 0) 
+//        return FLASH_INVALID_PARAM;
 
-    CS_Low(config);
-    SPI_Flash_Transfer(config, FLASH_ReadData);
-    SendAddress(config, readAddr);
-    for(uint16_t i=0; i<numByteToRead; i++) {
-        pBuffer[i] = SPI_Flash_Transfer(config, 0xFF);
-    }
-    CS_High(config);
+//    CS_Low(config);
+//    SPI_Flash_Transfer(config, FLASH_ReadData);
+//    SendAddress(config, readAddr);
+//    for(uint16_t i=0; i<numByteToRead; i++) {
+//        pBuffer[i] = SPI_Flash_Transfer(config, 0xFF);
+//    }
+//    CS_High(config);
 
-    return FLASH_OK;
-}
+//    return FLASH_OK;
+//}
 
 
 uint16_t Flash_Read_Id(SPI_Flash_Config* config)

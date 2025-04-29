@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-05 21:24:07
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-03-30 20:15:38
+ * @LastEditTime: 2025-04-29 09:02:08
  * @FilePath: \Demo\Drivers\BSP\Inc\pcf8574.h
  * @Description:    
  * 
@@ -11,8 +11,7 @@
 #ifndef __PCF8574_H
 #define __PCF8574_H
 
-#include "pch.h"
-// #include "iic_core.h"
+#include "iic_core.h"
 
 /******************************************************************************************/
 /* 引脚 定义 */
@@ -40,14 +39,17 @@
 /******************************************************************************************/
 
 typedef struct IIC_Config_t IIC_Config_t; // 前向声明
-extern IIC_Config_t IIC1_PCF8574;  /* IIC设备实例 */
-
+//extern const IIC_Ops_t IIC1_PCF8574; /* IIC操作接口结构体 */
 uint8_t pcf8574_init(void); 
 void rs485_tx_set(uint8_t en); /* RS485发送模式设置 */
-void IIC_DeviceWriteByte(IIC_Config_t *IICx, uint8_t data); /* 写入一个字节 */
-uint8_t IIC_DeviceReadByte(IIC_Config_t *IICx, uint8_t *data); /* 读取一个字节 */
-void IIC_DeviceWriteBit(IIC_Config_t *IICx, uint8_t bit, uint8_t sta); /* 设置PCF8574某个IO的高低电平 */
-uint8_t IIC_DeviceReadBit(IIC_Config_t *IICx, uint8_t bit); /* 读取PCF8574某个IO的高低电平 */
+
+uint8_t PCF8574_ReadByte(uint8_t *data); /* 读取PCF8574的IO状态 */
+IIC_Status PCF8574_WriteBit(uint8_t bit, uint8_t sta); /* 设置PCF8574某个IO的高低电平 */
+IIC_Status PCF8574_ReadBit(uint8_t reg, uint8_t* bit); /* 读取PCF8574某个IO的高低电平 */
+uint8_t PCF8574_ReadByte(uint8_t *data); /* 读取PCF8574的IO状态 */
+void PCF8574_WriteByte(uint8_t data); /* 设置PCF8574的IO状态 */
+
+
 
 
 

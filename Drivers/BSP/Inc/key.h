@@ -1,7 +1,17 @@
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-02-05 21:24:07
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-04-29 09:54:50
+ * @FilePath: \Demo\Drivers\BSP\Inc\key.h
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved. 
+ */
 #ifndef __KEY_H
 #define __KEY_H
 
-#include "sys.h"
+// #include "sys.h"
 
 /******************************************************************************************/
 /* 引脚定义 */

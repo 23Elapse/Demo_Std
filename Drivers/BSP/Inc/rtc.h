@@ -1,8 +1,8 @@
 /*
  * @Author: Elapse userszy@163.com
  * @Date: 2024-12-21 17:15:36
- * @LastEditors: Elapse userszy@163.com
- * @LastEditTime: 2024-12-21 17:16:20
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-04-29 09:59:05
  * @FilePath: \Demo\Drivers\BSP\Inc\rtc.h
  * @Description: 
  * 
@@ -12,7 +12,6 @@
 #ifndef __RTC_H
 #define __RTC_H
 
-#include "./SYSTEM/Inc/sys.h"
 
 
 extern RTC_HandleTypeDef g_rtc_handle;

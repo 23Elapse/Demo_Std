@@ -27,12 +27,12 @@ static const AT_Cmd_Config at_cmd_table[] = {
     {"AT+CIPSTAMAC_CUR?\r\n", "+CIPSTAMAC_CUR:", 2000, 2, "Query current MAC address"}, // 查询当前 MAC 地址
     {"AT+CIPSTO=10\r\n", "OK", 2000, 2, "Set timeout"}, // 设置超时时间
 
-    {"AT+CIPSTART=\"TCP\",\"api.example.com\",80\r\n", "CONNECT", 5000, 3, "建立TCP连接"}, // 建立 TCP 连接
-    {"AT+CIPSEND\r\n", ">", 2000, 2, "准备发送数据"},   // 准备发送数据
+//    {"AT+CIPSTART=\"TCP\",\"api.example.com\",80\r\n", "CONNECT", 5000, 3, "建立TCP连接"}, // 建立 TCP 连接
+//    {"AT+CIPSEND\r\n", ">", 2000, 2, "准备发送数据"},   // 准备发送数据
 
-    {"AT+CIPCLOSE\r\n", "CLOSED", 3000, 2, "关闭TCP连接"}, // 关闭 TCP 连接
-    {"AT+CWQAP\r\n", "OK", 2000, 2, "断开WiFi"},       // 断开 Wi-Fi
-    {"AT+RST\r\n", "ready", 5000, 1, "重启模块"},     // 重启模块
+//    {"AT+CIPCLOSE\r\n", "CLOSED", 3000, 2, "关闭TCP连接"}, // 关闭 TCP 连接
+//    {"AT+CWQAP\r\n", "OK", 2000, 2, "断开WiFi"},       // 断开 Wi-Fi
+//    {"AT+RST\r\n", "ready", 5000, 1, "重启模块"},     // 重启模块
 
     {NULL, NULL, 0, 0} // 结束标记
 };
@@ -45,7 +45,7 @@ static BaseType_t send_at_command(const AT_Cmd_Config* cmd) {
 
     while (retry <= cmd->retries) {
         // 发送指令
-        SendData(&usart_instances[2], (uint8_t*)cmd->at_cmd, strlen(cmd->at_cmd));
+//        SendData(&usart_instances[2], (uint8_t*)cm  
         
         // 等待响应
         uint32_t start_tick = xTaskGetTickCount();

@@ -89,7 +89,7 @@ void start_task(void *pvParameters)
  */
 void task1(void *pvParameters)
 {
-    uint32_t task1_num = 0;
+//    uint32_t task1_num = 0;
     
     while(1)
     {

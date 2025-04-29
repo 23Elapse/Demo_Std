@@ -1,4 +1,5 @@
 #include "my_rs485.h"
+#include "pch.h"
 // RS485方向控制引脚初始化
 void RS485_GPIO_Init(void) {
     GPIO_InitTypeDef GPIO_InitStruct;
@@ -11,6 +12,8 @@ void RS485_GPIO_Init(void) {
     RS485_RX_MODE(); // 初始化为接收模式
 }
 void rs485_init(void) {
+
+
     // 初始化发送和接收缓冲区
     tx_buffer.head = 0;
     tx_buffer.tail = 0;
@@ -36,30 +39,30 @@ void USART2_IRQHandler(void) {
     }
 }
 
-// 写入发送缓冲区（主循环调用）
-void Buffer_Write_Tx(uint8_t data) {
-    if ((tx_buffer.head + 1) % BUFFER_SIZE != tx_buffer.tail) {
-        tx_buffer.buffer[tx_buffer.head] = data;
-        tx_buffer.head = (tx_buffer.head + 1) % BUFFER_SIZE;
-    }
-}
+ // 写入发送缓冲区（主循环调用）
+ void Buffer_Write_Tx(uint8_t data) {
+     if ((tx_buffer.head + 1) % BUFFER_SIZE != tx_buffer.tail) {
+         tx_buffer.buffer[tx_buffer.head] = data;
+         tx_buffer.head = (tx_buffer.head + 1) % BUFFER_SIZE;
+     }
+ }
 
-// 写入接收缓冲区（主循环调用）
-void Buffer_Write_Rx(uint8_t data) {
-    if ((rx_buffer.head + 1) % BUFFER_SIZE != rx_buffer.tail) {
-        rx_buffer.buffer[rx_buffer.head] = data;
-        rx_buffer.head = (rx_buffer.head + 1) % BUFFER_SIZE;
-    }
-}
-// 从接收缓冲区读取（主循环调用）
-uint8_t Buffer_Read_Rx(void) {
-    uint8_t data = 0;
-    if (rx_buffer.head != rx_buffer.tail) {
-        data = rx_buffer.buffer[rx_buffer.tail];
-        rx_buffer.tail = (rx_buffer.tail + 1) % BUFFER_SIZE;
-    }
-    return data;
-}
+ // 写入接收缓冲区（主循环调用）
+ void Buffer_Write_Rx(uint8_t data) {
+     if ((rx_buffer.head + 1) % BUFFER_SIZE != rx_buffer.tail) {
+         rx_buffer.buffer[rx_buffer.head] = data;
+         rx_buffer.head = (rx_buffer.head + 1) % BUFFER_SIZE;
+     }
+ }
+ // 从接收缓冲区读取（主循环调用）
+ uint8_t Buffer_Read_Rx(void) {
+     uint8_t data = 0;
+     if (rx_buffer.head != rx_buffer.tail) {
+         data = rx_buffer.buffer[rx_buffer.tail];
+         rx_buffer.tail = (rx_buffer.tail + 1) % BUFFER_SIZE;
+     }
+     return data;
+ }
 
 // 发送数据（主循环调用）
 void RS485_Send(void) {

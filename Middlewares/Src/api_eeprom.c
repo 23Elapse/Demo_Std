@@ -1,5 +1,15 @@
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-04-18 20:46:08
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-04-29 09:01:45
+ * @FilePath: \Demo\Middlewares\Src\api_eeprom.c
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved. 
+ */
 #include "api_eeprom.h"
-
+#include "pch.h"
 
 const IIC_Ops_t IIC1_EEPROM = {
     .dev_addr = EEPROM_ADDR,  // 设备地址（7位）
@@ -14,8 +24,9 @@ const IIC_Ops_t IIC1_EEPROM = {
  * @param  val: 数据
  * @retval 无
  */
-IIC_Status EEPROMReadByteFromReg(uint8_t instance_id, uint8_t reg, uint8_t *val)
+IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
 {
+    uint8_t instance_id = IIC1;
     IIC_Start(instance_id);
     //地址处理逻辑与写入一致
     #if (EEPROM_TYPE > AT24C16)
@@ -41,8 +52,9 @@ IIC_Status EEPROMReadByteFromReg(uint8_t instance_id, uint8_t reg, uint8_t *val)
  * @param  val: 数据
  * @retval 无
  */
-IIC_Status EEPROMWriteByteToReg(uint8_t instance_id, int8_t reg, uint8_t val)
+IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
 {
+    uint8_t instance_id = IIC1;
     IIC_Start(instance_id);
     //动态生成设备地址（处理容量>2K的情况）
     #if (EEPROM_TYPE > AT24C16)

@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-15 20:36:56
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-20 10:48:39
+ * @LastEditTime: 2025-04-29 09:58:14
  * @FilePath: \Demo\User\pch.h
  * @Description: 
  * 
@@ -51,6 +51,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "sys.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include "semphr.h"
+#include "ring_buffer.h"   
 #include "usart.h"
 #include "led.h"
 #include "delay.h"
@@ -60,10 +64,10 @@
 #include "btim.h"
 // #include "spi.h"
 #include "spi_flash.h"
-#include "myiic.h"
+// #include "myiic.h"
 //#include "24cxx.h"
 #include "iic_core.h"
-#include "my_rs485.h"
+//#include "my_rs485.h"
 #include "pcf8574.h"
 #include "freertos_demo.h"
 #include "queue.h"
@@ -76,6 +80,9 @@
 #include "api_wifi.h"
 #include "api_eeprom.h"
 // #include "api_flash.h"
+#include "serial_driver.h"
+#include "common_driver.h"
+#include "api_eeprom.h"
 
 
 
