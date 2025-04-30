@@ -1,10 +1,11 @@
 #include "pch.h"
+#include "usart.h"
 /* 重定义fputc函数, printf函数最终会通过调用fputc输出字符串到串口 */
 int fputc(int ch, FILE *f)
 {
-    while ((USART_UX->SR & 0X40) == 0);               /* 等待上一个字符发送完成 */
+    while ((USART1->SR & 0X40) == 0);               /* 等待上一个字符发送完成 */
 
-    USART_UX->DR = (uint8_t)ch;                       /* 将要发送的字符 ch 写入到DR寄存器 */
+    USART1->DR = (uint8_t)ch;                       /* 将要发送的字符 ch 写入到DR寄存器 */
     return ch;
 }
 
@@ -116,7 +117,7 @@ USART_ConfigTypeDef usart_instances[] ={
         .NVIC_IRQChannelPreemptionPriority = 0,
         .NVIC_IRQChannelSubPriority = 0,
         .USART_IRQChannelCmd = ENABLE,
-        .RxCallback = My_RxHandler, // 自定义接收回调函数
+        .RxCallback = NULL, // 自定义接收回调函数
         .TxCallback = NULL,
         .rx_ring = {0},
         .tx_ring = {0}
@@ -227,22 +228,22 @@ void My_USART_Init()
 //void USART1_IRQHandler(void) { USART_Generic_IRQHandler(&usart_instances[0]); }
 //void USART6_IRQHandler(void) { USART_Generic_IRQHandler(&usart_instances[2]); }
 // 接收回调函数
-void My_RxHandler(uint8_t* data, uint16_t len) {
-    static uint8_t process_buf[RX_BUFFER_SIZE];
-    static uint16_t process_idx = 0;
+// void My_RxHandler(uint8_t* data, uint16_t len) {
+//     static uint8_t process_buf[RX_BUFFER_SIZE];
+//     static uint16_t process_idx = 0;
     
-    // 将新数据追加到处理缓冲区
-    if (process_idx + len < sizeof(process_buf)) {
-        memcpy(process_buf + process_idx, data, len);
-        process_idx += len;
+//     // 将新数据追加到处理缓冲区
+//     if (process_idx + len < sizeof(process_buf)) {
+//         memcpy(process_buf + process_idx, data, len);
+//         process_idx += len;
         
-        // 示例：每接收10字节触发一次处理
-        if (process_idx >= 10) {
-//            ProcessReceivedData(process_buf, process_idx);
-            process_idx = 0;  // 重置索引
-        }
-    }
-}
+//         // 示例：每接收10字节触发一次处理
+//         if (process_idx >= 10) {
+// //            ProcessReceivedData(process_buf, process_idx);
+//             process_idx = 0;  // 重置索引
+//         }
+//     }
+// }
 
 //发送函数
 //void SendData(USART_ConfigTypeDef* instance, uint8_t* data, uint16_t len) {

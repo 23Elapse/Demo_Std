@@ -11,9 +11,9 @@ uint16_t pressure = 1000;
 
 // 定义 EEPROM 表
 EepromTableEntry eepromTable[] = {
-    //id,   EE_Addr,    RAM_Addr,          DefaultValue,    MaxValue,   MinValue,   dirty,      ResetBehavior,  Version,    Checksum     
-    { 1,    0x1000,     &temperature,      25,              100,        0,          false,      EERESET,          1,          0 },
-    { 2,    0x1001,     &pressure,         1000,            2000,       500,        false,      NO_RESET,       1,          0 }
+    //id,   EE_Addr,    RAM_Addr,          DefaultValue,    MaxValue,   MinValue,   dirty,      ResetBehavior,      Version,    Checksum     
+    { 1,    0x1000,     &temperature,      25,              100,        0,          false,      EERESET,            1,          0 },
+    { 2,    0x1001,     &pressure,         1000,            2000,       500,        false,      NO_RESET,           1,          0 }
 };
 uint16_t table_size = sizeof(eepromTable) / sizeof(EepromTableEntry);
 

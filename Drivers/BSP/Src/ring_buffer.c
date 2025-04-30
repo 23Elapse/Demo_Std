@@ -5,33 +5,29 @@
  * @brief 初始化环形缓冲区
  * @param rb           缓冲区指针
  * @param capacity     缓冲区容量（元素数）
- * @param item_size    每个元素的大小（字节）
+ * @param element_size    每个元素的大小（字节）
  * @return RB_Status   状态码
  */
-RB_Status RingBuffer_Init(RingBuffer_t *rb, uint32_t capacity, uint32_t item_size)
+RB_Status RingBuffer_Init(RingBuffer_t *rb, uint32_t capacity, uint32_t element_size)
 {
-    if (!rb) return RB_ERROR_NULL_PTR;
+    if (!rb || capacity == 0 || element_size == 0) return RB_ERROR_INIT;
 
-    rb->buffer = pvPortMalloc(capacity * item_size);
-    if (!rb->buffer) return RB_ERROR_MEMORY;
+    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+    if (!rtos_ops) return RB_ERROR_INIT;
 
+    rb->buffer = (uint8_t *)rtos_ops->Malloc(capacity * element_size);
+    if (!rb->buffer) return RB_ERROR_INIT;
+
+    rb->element_size = element_size;
     rb->capacity = capacity;
-    rb->item_size = item_size;
     rb->head = 0;
     rb->tail = 0;
     rb->count = 0;
 
-    rb->mutex = xSemaphoreCreateMutex();
-    if (!rb->mutex) {
-        vPortFree(rb->buffer);
-        return RB_ERROR_MEMORY;
-    }
-
-    rb->sem = xSemaphoreCreateBinary();
+    rb->sem = rtos_ops->SemaphoreCreate();
     if (!rb->sem) {
-        vSemaphoreDelete(rb->mutex);
-        vPortFree(rb->buffer);
-        return RB_ERROR_MEMORY;
+        rtos_ops->Free(rb->buffer);
+        return RB_ERROR_INIT;
     }
 
     return RB_OK;
@@ -44,13 +40,24 @@ RB_Status RingBuffer_Init(RingBuffer_t *rb, uint32_t capacity, uint32_t item_siz
  */
 RB_Status RingBuffer_Deinit(RingBuffer_t *rb)
 {
-    if (!rb) return RB_ERROR_NULL_PTR;
+    if (!rb || !rb->buffer) return RB_ERROR_INIT;
 
-    if (rb->mutex) vSemaphoreDelete(rb->mutex);
-    if (rb->sem) vSemaphoreDelete(rb->sem);
-    if (rb->buffer) vPortFree(rb->buffer);
+    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+    if (!rtos_ops) return RB_ERROR_INIT;
 
-    memset(rb, 0, sizeof(RingBuffer_t));
+    rtos_ops->Free(rb->buffer);
+    rb->buffer = NULL;
+    rb->element_size = 0;
+    rb->capacity = 0;
+    rb->head = 0;
+    rb->tail = 0;
+    rb->count = 0;
+
+    if (rb->sem) {
+        rtos_ops->SemaphoreDelete(rb->sem);
+        rb->sem = NULL;
+    }
+
     return RB_OK;
 }
 
@@ -62,23 +69,16 @@ RB_Status RingBuffer_Deinit(RingBuffer_t *rb)
  */
 RB_Status RingBuffer_Write(RingBuffer_t *rb, const void *data)
 {
-    if (!rb || !data) return RB_ERROR_NULL_PTR;
+    if (!rb || !rb->buffer || !data) return RB_ERROR_INIT;
 
-    if (xSemaphoreTake(rb->mutex, portMAX_DELAY) != pdTRUE) {
-        return RB_ERROR_LOCK_FAILED;
-    }
+    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+    if (!rtos_ops) return RB_ERROR_INIT;
 
-    if (RingBuffer_IsFull(rb)) {
-        xSemaphoreGive(rb->mutex);
-        return RB_ERROR_BUFFER_FULL;
-    }
+    if (rb->count >= rb->capacity) return RB_ERROR_BUFFER_FULL;
 
-    uint8_t *dest = (uint8_t *)rb->buffer + (rb->head * rb->item_size);
-    memcpy(dest, data, rb->item_size);
-
-    rb->head = (rb->head + 1) % rb->capacity;
+    memcpy(rb->buffer + rb->tail * rb->element_size, data, rb->element_size);
+    rb->tail = (rb->tail + 1) % rb->capacity;
     rb->count++;
-    xSemaphoreGive(rb->mutex);
 
     return RB_OK;
 }
@@ -87,23 +87,25 @@ RB_Status RingBuffer_Write(RingBuffer_t *rb, const void *data)
  * @brief 从中断写入数据到缓冲区
  * @param rb   缓冲区指针
  * @param data 待写入数据
- * @param pxHigherPriorityTaskWoken FreeRTOS任务切换标志
+ * @param xHigherPriorityTaskWoken FreeRTOS任务切换标志
  * @return RB_Status
  */
-RB_Status RingBuffer_WriteFromISR(RingBuffer_t *rb, const void *data, BaseType_t *pxHigherPriorityTaskWoken)
+RB_Status RingBuffer_WriteFromISR(RingBuffer_t *rb, const void *data, void *xHigherPriorityTaskWoken)
 {
-    if (!rb || !data) return RB_ERROR_NULL_PTR;
+    if (!rb || !rb->buffer || !data) return RB_ERROR_INIT;
 
-    if (rb->count == rb->capacity) {
-        return RB_ERROR_BUFFER_FULL;
-    }
+    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+    if (!rtos_ops) return RB_ERROR_INIT;
 
-    uint8_t *dest = (uint8_t *)rb->buffer + (rb->head * rb->item_size);
-    memcpy(dest, data, rb->item_size);
+    if (rb->count >= rb->capacity) return RB_ERROR_BUFFER_FULL;
 
-    rb->head = (rb->head + 1) % rb->capacity;
+    memcpy(rb->buffer + rb->tail * rb->element_size, data, rb->element_size);
+    rb->tail = (rb->tail + 1) % rb->capacity;
     rb->count++;
-    xSemaphoreGiveFromISR(rb->sem, pxHigherPriorityTaskWoken);
+
+    if (rb->sem) {
+        rtos_ops->SemaphoreGiveFromISR(rb->sem, xHigherPriorityTaskWoken);
+    }
 
     return RB_OK;
 }
@@ -116,23 +118,16 @@ RB_Status RingBuffer_WriteFromISR(RingBuffer_t *rb, const void *data, BaseType_t
  */
 RB_Status RingBuffer_Read(RingBuffer_t *rb, void *data)
 {
-    if (!rb || !data) return RB_ERROR_NULL_PTR;
+    if (!rb || !rb->buffer || !data) return RB_ERROR_INIT;
 
-    if (xSemaphoreTake(rb->mutex, portMAX_DELAY) != pdTRUE) {
-        return RB_ERROR_LOCK_FAILED;
-    }
+    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+    if (!rtos_ops) return RB_ERROR_INIT;
 
-    if (RingBuffer_IsEmpty(rb)) {
-        xSemaphoreGive(rb->mutex);
-        return RB_ERROR_BUFFER_EMPTY;
-    }
+    if (rb->count == 0) return RB_ERROR_BUFFER_EMPTY;
 
-    uint8_t *src = (uint8_t *)rb->buffer + (rb->tail * rb->item_size);
-    memcpy(data, src, rb->item_size);
-
-    rb->tail = (rb->tail + 1) % rb->capacity;
+    memcpy(data, rb->buffer + rb->head * rb->element_size, rb->element_size);
+    rb->head = (rb->head + 1) % rb->capacity;
     rb->count--;
-    xSemaphoreGive(rb->mutex);
 
     return RB_OK;
 }

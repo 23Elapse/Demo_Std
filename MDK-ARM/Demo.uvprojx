@@ -465,6 +465,16 @@
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\ring_buffer.c</FilePath>
             </File>
+            <File>
+              <FileName>rtos_freertos_impl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\rtos_freertos_impl.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtos_abstraction.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\rtos_abstraction.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

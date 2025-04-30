@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-15 20:36:56
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-29 09:58:14
+ * @LastEditTime: 2025-04-30 10:16:29
  * @FilePath: \Demo\User\pch.h
  * @Description: 
  * 
@@ -83,6 +83,7 @@
 #include "serial_driver.h"
 #include "common_driver.h"
 #include "api_eeprom.h"
+#include "rtos_abstraction.h"
 
 
 

@@ -46,57 +46,94 @@ typedef struct {
     USART_TypeDef* instance; // 设备实例
 } Serial_ErrorLog_t;
 
-/**
- * @brief  串口接收数据结构体
- */
+
 typedef struct {
-    uint8_t data[32];       // 数据帧（RS485: Modbus帧，UART: [0xAA][长度][数据][0x55]）
-    uint32_t length;        // 实际帧长度
+    uint8_t sof;
+    uint8_t addr1;
+    uint8_t addr2;
+    uint8_t cmd;
+    uint8_t cmd_sub;
+    uint8_t length;
+    uint8_t *info;
+    uint16_t info_len;
+    uint16_t crc;
+} RS485_Frame_t;
+
+typedef struct {
+    union {
+        RS485_Frame_t rs485_frame;
+        struct {
+            uint8_t data[208];
+            uint32_t length;
+        } uart_data;
+    };
+    uint8_t is_rs485;
 } Serial_RxData_t;
 
-/**
- * @brief  串口设备结构体
- */
+typedef enum {
+    FRAME_HEADER_7E = 0x7E,
+    FRAME_HEADER_F6 = 0xF6,
+    FRAME_HEADER_F7 = 0xF7,
+    FRAME_HEADER_52 = 0x52
+} Serial_FrameHeader_t;
+
+typedef int (*Serial_FrameHandler_t)(void *dev, Serial_RxData_t *rx_data, uint8_t byte,
+                                     uint32_t *index, uint8_t *state, uint8_t *expected_length,
+                                     void *xHigherPriorityTaskWoken);
+
 typedef struct {
-    USART_TypeDef* instance;  // USART实例（如USART1）
-    GPIO_TypeDef* tx_port;    // TX引脚端口
-    uint16_t tx_pin;          // TX引脚
-    GPIO_TypeDef* rx_port;    // RX引脚端口
-    uint16_t rx_pin;          // RX引脚
-    GPIO_TypeDef* de_port;    // DE引脚端口（RS485模式）
-    uint16_t de_pin;          // DE引脚（RS485模式）
-    uint32_t baudrate;        // 波特率 (bps)
-    uint8_t af;               // GPIO复用功能（如GPIO_AF_USART1）
-    uint8_t irqn;             // 中断号（如USART1_IRQn）
-    uint8_t slave_addr;       // Modbus从站地址（RS485模式，如0x01）
-    Serial_Mode_t mode;       // 串口模式（RS485或UART）
-    TIM_TypeDef* timer;       // 定时器实例（RS485模式，如TIM2）
-    uint8_t timer_irqn;       // 定时器中断号（如TIM2_IRQn）
-    RingBuffer_t rx_buffer;   // 接收环形缓冲区
+    Serial_FrameHeader_t header;
+    Serial_FrameHandler_t handler;
+} FrameHandlerEntry_t;
+
+typedef struct {
+    USART_TypeDef* instance;
+    GPIO_TypeDef* tx_port;
+    uint16_t tx_pin;
+    GPIO_TypeDef* rx_port;
+    uint16_t rx_pin;
+    GPIO_TypeDef* de_port;
+    uint16_t de_pin;
+    uint32_t baudrate;
+    uint8_t af;
+    uint8_t irqn;
+    Serial_Mode_t mode;
+    uint32_t silent_ticks;
+    RingBuffer_t rx_buffer;
 } Serial_Device_t;
 
-/**
- * @brief  串口操作接口
- */
+#define RS485_TX_QUEUE_SIZE 10
+typedef struct {
+    RS485_Frame_t frames[RS485_TX_QUEUE_SIZE];
+    uint8_t info_buffers[RS485_TX_QUEUE_SIZE][200];
+    uint8_t head;
+    uint8_t tail;
+    uint8_t count;
+} RS485_TxFrameQueue_t;
+
 typedef struct {
     Serial_Status (*Init)(Serial_Device_t*);
     Serial_Status (*Deinit)(Serial_Device_t*);
     Serial_Status (*SendData)(Serial_Device_t*, const uint8_t*, uint32_t);
-    Serial_Status (*ReceiveFromBuffer)(Serial_Device_t*, Serial_RxData_t*, TickType_t);
-    Serial_Status (*GetErrorLog)(Serial_ErrorLog_t*, TickType_t);
+    Serial_Status (*SendFrame)(Serial_Device_t*, RS485_Frame_t*);
+    Serial_Status (*ReceiveFromBuffer)(Serial_Device_t*, Serial_RxData_t*, uint32_t);
+    Serial_Status (*GetErrorLog)(Serial_ErrorLog_t*, uint32_t);
+    Serial_Status (*AddFrameToQueue)(RS485_Frame_t*);
+    void (*PollSendRS485)(Serial_Device_t*);
 } Serial_Ops_t;
 
-/**
- * @brief  全局变量
- */
-static Serial_Device_t *serial_devices[4] = {0}; // 最多4个串口实例
-static uint8_t serial_device_count = 0;          // 当前实例数
-static RingBuffer_t error_log_buffer;            // 错误日志缓冲区
 extern const Serial_Ops_t Serial_Operations;
-extern Serial_Device_t RS485_Device;
-extern Serial_Device_t UART_Device;
-Serial_Status Serial_Deinit(Serial_Device_t *dev);
-void Serial_IRQHandler(Serial_Device_t *dev);
-void Serial_TIM_IRQHandler(TIM_TypeDef *timer);
 
+extern Serial_Device_t UART_Device;
+extern Serial_Device_t RS485_Device;
+extern Serial_ErrorLog_t Serial_ErrorLog;
+extern Serial_ErrorLog_t Serial_ErrorLogArray[10];
+
+int HandleFrame_7E(void *dev_ptr, Serial_RxData_t *rx_data, uint8_t byte,
+                   uint32_t *index, uint8_t *state, uint8_t *expected_length,
+                   void *xHigherPriorityTaskWoken);
+int HandleFrame_F6(void *dev_ptr, Serial_RxData_t *rx_data, uint8_t byte,
+                   uint32_t *index, uint8_t *state, uint8_t *expected_length,
+                   void *xHigherPriorityTaskWoken);
+Serial_Status Serial_Deinit(Serial_Device_t *dev);
 #endif

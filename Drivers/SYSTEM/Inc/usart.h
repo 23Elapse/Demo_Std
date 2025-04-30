@@ -103,6 +103,6 @@ void USART1_SendString(const char *str);
 uint16_t USART1_ReceiveData(uint8_t *buf, uint16_t len);
 void USART1_IRQHandler(void);
 void My_USART_Init(void);
-void My_RxHandler(uint8_t* data, uint16_t len) ;
+//void My_RxHandler(uint8_t* data, uint16_t len) ;
 void SendData(USART_ConfigTypeDef* instance, uint8_t* data, uint16_t len);
 #endif

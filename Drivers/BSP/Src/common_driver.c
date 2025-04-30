@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 10:00:00
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-27 21:38:42
+ * @LastEditTime: 2025-04-29 14:21:29
  * @FilePath: \Demo\Drivers\BSP\Src\common_driver.c
  * @Description: 通用驱动实现，供RS485、UART、CAN、定时器等设备复用
  *
@@ -40,10 +40,10 @@ Common_Status Common_GPIO_Init(GPIO_TypeDef *port, uint16_t pin, GPIOMode_TypeDe
     if (!port || !pin) return COMMON_ERR_INIT;
 
     // 启用GPIO时钟
-    if (port == GPIOA) RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
-    else if (port == GPIOB) RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-    else return COMMON_ERR_INIT;
-
+    // if (port == GPIOA) RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+    // else if (port == GPIOB) RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+    // else return COMMON_ERR_INIT;
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA << ((uint32_t)port - GPIOA_BASE) / 0x400, ENABLE);
     // 配置GPIO
     GPIO_InitTypeDef gpio_init = {
         .GPIO_Pin = pin,
@@ -61,7 +61,6 @@ Common_Status Common_GPIO_Init(GPIO_TypeDef *port, uint16_t pin, GPIOMode_TypeDe
 
     return COMMON_OK;
 }
-
 /**
  * @brief  初始化USART
  */
