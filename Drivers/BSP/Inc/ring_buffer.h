@@ -14,8 +14,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "FreeRTOS.h"
-#include "semphr.h"
 #include "rtos_abstraction.h"
 
 typedef enum {
