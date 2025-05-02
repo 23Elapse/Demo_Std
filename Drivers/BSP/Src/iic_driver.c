@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-30 15:24:22
+ * @LastEditTime: 2025-05-03 01:20:41
  * @FilePath: \Demo\Drivers\BSP\Src\iic_driver.c
  * @Description: IIC 驱动实现，支持 RTOS 抽象
  *
@@ -75,7 +75,7 @@ IIC_Status IICx_Init(IIC_Config_t *IICx)
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
     if (!rtos_ops || !IICx || !IICx->scl_port || !IICx->sda_port)
     {
-        printf("[IIC%d] Invalid RTOS or config\r\n", IICx->instance_id);
+        printf("[IIC%d] Invalid RTOS or config\n", IICx->instance_id);
         return IIC_ERR_INIT;
     }
 
@@ -85,7 +85,7 @@ IIC_Status IICx_Init(IIC_Config_t *IICx)
         IICx->mutex = rtos_ops->SemaphoreCreate();
         if (IICx->mutex == NULL)
         {
-            printf("[IIC%d] Failed to create mutex\r\n", IICx->instance_id);
+            printf("[IIC%d] Failed to create mutex\n", IICx->instance_id);
             return IIC_ERR_INIT;
         }
     }
@@ -96,7 +96,7 @@ IIC_Status IICx_Init(IIC_Config_t *IICx)
     IIC_SCL_1(IICx->instance_id); // 初始拉高
     IIC_SDA_1(IICx->instance_id);
 
-    printf("[IIC%d] Initialized successfully\r\n", IICx->instance_id);
+    printf("[IIC%d] Initialized successfully\n", IICx->instance_id);
     return IIC_OK;
 }
 
@@ -110,13 +110,13 @@ IIC_Status IIC_ResetBus(IIC_Config_t *IICx)
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
     if (!rtos_ops || !IICx)
     {
-        printf("[IIC%d] Invalid RTOS or config\r\n", IICx ? IICx->instance_id : 0);
+        printf("[IIC%d] Invalid RTOS or config\n", IICx ? IICx->instance_id : 0);
         return IIC_ERR_INIT;
     }
 
-    if (!rtos_ops->SemaphoreTake(IICx->mutex, 0xFFFFFFFF))
+    if (!rtos_ops->SemaphoreTake(IICx->mutex, 100))
     {
-        printf("[IIC%d] Failed to take mutex\r\n", IICx->instance_id);
+        printf("[IIC%d] Failed to take mutex, timeout after 100ms\n", IICx->instance_id);
         return IIC_ERR_TIMEOUT;
     }
 
@@ -190,7 +190,7 @@ IIC_Status IIC_ReadByte(uint8_t instance_id, uint8_t ack, uint8_t *data)
 {
     if (!data)
     {
-        printf("[IIC%d] Invalid data pointer\r\n", instance_id);
+        printf("[IIC%d] Invalid data pointer\n", instance_id);
         return IIC_ERR_INIT;
     }
 
@@ -271,10 +271,11 @@ IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr)
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
     if (!rtos_ops)
     {
-        printf("[IIC%d] RTOS ops not initialized\r\n", instance_id);
+        printf("[IIC%d] RTOS ops not initialized\n", instance_id);
         return IIC_ERR_INIT;
     }
 
+    rtos_ops->Delay(3); /* 初始延时 3ms，覆盖大多数设备写入时间 */
     uint16_t timeout = I2C_TIMEOUT;
     while (timeout--)
     {
@@ -285,12 +286,12 @@ IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr)
             return IIC_OK;
         }
         IIC_Stop(instance_id);
-        rtos_ops->Delay(1); // 延时 1ms
+        rtos_ops->Delay(1); /* 每次轮询间隔 1ms */
     }
 
-    printf("[IIC%d] Write timeout\r\n", instance_id);
+    printf("[IIC%d] Write timeout\n", instance_id);
     return IIC_ERR_TIMEOUT;
-} 
+}
 
 /**
  * @brief 初始化所有 IIC 设备
@@ -300,7 +301,7 @@ void IIC_INIT(void)
     IIC_Status status = IICx_Init(&IIC1_config);
     if (status != IIC_OK)
     {
-        printf("[IIC] Initialization failed: %d\r\n", status);
+        printf("[IIC] Initialization failed: %d\n", status);
     }
 }
 
@@ -315,14 +316,13 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
     if (!rtos_ops || !IICx || !IICx->scl_port || !IICx->sda_port || !i2c_dev)
     {
-        printf("[IIC%d] Invalid config, device, or RTOS ops\r\n", IICx ? IICx->instance_id : 0);
+        printf("[IIC%d] Invalid config, device, or RTOS ops\n", IICx ? IICx->instance_id : 0);
         return 1;
     }
 
-    // 获取信号量，设置 100ms 超时
     if (!rtos_ops->SemaphoreTake(IICx->mutex, 100))
     {
-        printf("[IIC%d] Failed to take mutex, timeout after 100ms\r\n", IICx->instance_id);
+        printf("[IIC%d] Failed to take mutex, timeout after 100ms\n", IICx->instance_id);
         return 1;
     }
 
@@ -332,14 +332,14 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         IIC_Status status = i2c_dev->ReadByte(EEPROM_TYPE, &temp);
         if (status != IIC_OK)
         {
-            printf("[IIC%d] Failed to read EEPROM (addr 0x%02X): %d\r\n", IICx->instance_id, i2c_dev->dev_addr, status);
+            printf("[IIC%d] Failed to read EEPROM (addr 0x%02X): %d\n", IICx->instance_id, i2c_dev->dev_addr, status);
             rtos_ops->SemaphoreGive(IICx->mutex);
             return 1;
         }
 
         if (temp == 0x55)
         {
-            printf("[IIC%d] EEPROM already initialized (addr 0x%02X)\r\n", IICx->instance_id, i2c_dev->dev_addr);
+            printf("[IIC%d] EEPROM already initialized (addr 0x%02X)\n", IICx->instance_id, i2c_dev->dev_addr);
             rtos_ops->SemaphoreGive(IICx->mutex);
             return 0;
         }
@@ -347,7 +347,7 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         status = i2c_dev->WriteByte(EEPROM_TYPE, 0x55);
         if (status != IIC_OK)
         {
-            printf("[IIC%d] Failed to write EEPROM (addr 0x%02X): %d\r\n", IICx->instance_id, i2c_dev->dev_addr, status);
+            printf("[IIC%d] Failed to write EEPROM (addr 0x%02X): %d\n", IICx->instance_id, i2c_dev->dev_addr, status);
             rtos_ops->SemaphoreGive(IICx->mutex);
             return 1;
         }
@@ -363,7 +363,7 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         IIC_Stop(IICx->instance_id);
         if (status != IIC_OK)
         {
-            printf("[IIC%d] Failed to write PCF8574 (addr 0x%02X): %d\r\n", IICx->instance_id, i2c_dev->dev_addr, status);
+            printf("[IIC%d] Failed to write PCF8574 (addr 0x%02X): %d\n", IICx->instance_id, i2c_dev->dev_addr, status);
             rtos_ops->SemaphoreGive(IICx->mutex);
             return 1;
         }
@@ -373,7 +373,7 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         return (status == IIC_OK) ? 0 : 1;
     }
 
-    printf("[IIC%d] Unsupported device address: 0x%02X\r\n", IICx->instance_id, i2c_dev->dev_addr);
+    printf("[IIC%d] Unsupported device address: 0x%02X\n", IICx->instance_id, i2c_dev->dev_addr);
     rtos_ops->SemaphoreGive(IICx->mutex);
     return 1;
 }
@@ -390,7 +390,7 @@ IIC_Status IICx_DevWrite(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t
 {
     if (!i2c_dev || !buf || len == 0)
     {
-        printf("[IIC] Invalid parameters for write\r\n");
+        printf("[IIC] Invalid parameters for write\n");
         return IIC_ERR_INIT;
     }
 
@@ -399,7 +399,7 @@ IIC_Status IICx_DevWrite(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t
         IIC_Status status = i2c_dev->WriteByte(reg++, *buf++);
         if (status != IIC_OK)
         {
-            printf("[IIC] Write failed at reg 0x%02X: %d\r\n", reg - 1, status);
+            printf("[IIC] Write failed at reg 0x%02X: %d\n", reg - 1, status);
             return status;
         }
     }
@@ -419,7 +419,7 @@ IIC_Status IICx_DevRead(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t 
 {
     if (!i2c_dev || !buf || len == 0)
     {
-        printf("[IIC] Invalid parameters for read\r\n");
+        printf("[IIC] Invalid parameters for read\n");
         return IIC_ERR_INIT;
     }
 
@@ -428,7 +428,7 @@ IIC_Status IICx_DevRead(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t 
         IIC_Status status = i2c_dev->ReadByte(reg++, buf++);
         if (status != IIC_OK)
         {
-            printf("[IIC] Read failed at reg 0x%02X: %d\r\n", reg - 1, status);
+            printf("[IIC] Read failed at reg 0x%02X: %d\n", reg - 1, status);
             return status;
         }
     }
@@ -446,7 +446,7 @@ IIC_Status IICx_DevRead(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t 
  *
  * 3. 检测设备
  * if (IIC_Check(&IIC1_config, &IIC1_EEPROM) == 0) {
- *     printf("EEPROM detected!\r\n");
+ *     printf("EEPROM detected!\n");
  * }
  *
  * 4. 读写操作

@@ -2,13 +2,12 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-17 07:00:00
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-29 10:01:44
+ * @LastEditTime: 2025-05-02 21:23:27
  * @FilePath: \Demo\Drivers\BSP\Inc\ring_buffer.h
- * @Description: 通用环形缓冲区接口，适配FreeRTOS，支持多设备（如CAN、SPI Flash）
+ * @Description: 通用环形缓冲区接口，适配 RTOS 抽象，支持多设备
  *
- * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved.
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
  */
-
 #ifndef __RING_BUFFER_H
 #define __RING_BUFFER_H
 
@@ -16,14 +15,16 @@
 #include <stdbool.h>
 #include "rtos_abstraction.h"
 
-typedef enum {
+typedef enum
+{
     RB_OK = 0,
     RB_ERROR_INIT,
     RB_ERROR_BUFFER_FULL,
     RB_ERROR_BUFFER_EMPTY
 } RB_Status;
 
-typedef struct {
+typedef struct
+{
     uint8_t *buffer;
     uint32_t element_size;
     uint32_t capacity;

@@ -2,70 +2,99 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-29 17:44:10
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-29 09:56:33
+ * @LastEditTime: 2025-05-03 01:21:46
  * @FilePath: \Demo\Drivers\BSP\Inc\my_rs485.h
- * @Description: 
- * 
- * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved. 
+ * @Description: RS485 驱动头文件
+ *
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
  */
 #ifndef __MY_RS485_H
 #define __MY_RS485_H
-// #include "pch.h"
-//#include "ring_buffer.h"
+
+#include "serial_driver.h"
+#include "ring_buffer.h"
+#include "log_system.h"
+
 #define BUFFER_SIZE 512
+
 /**
- * @brief  RS485状态枚举
+ * @brief RS485 状态枚举
  */
-typedef enum {
-    RS485_OK = 0,           // 操作成功
-    RS485_ERR_INIT,         // 初始化失败
-    RS485_ERR_TIMEOUT,      // 操作超时
-    RS485_ERR_TRANSMIT,     // 传输失败
-    RS485_ERR_BUFFER_FULL,  // 环形缓冲区满
-    RS485_ERR_NO_DATA       // 无数据可读
+typedef enum
+{
+    RS485_OK = 0,
+    RS485_ERR_INIT,
+    RS485_ERR_TIMEOUT,
+    RS485_ERR_TRANSMIT,
+    RS485_ERR_BUFFER_FULL,
+    RS485_ERR_NO_DATA
 } RS485_Status;
 
 /**
- * @brief  RS485接收数据结构体
+ * @brief RS485 接收数据结构体
  */
-typedef struct {
-    uint8_t data[32];       // 固定长度数据帧（32字节）
-    uint32_t length;        // 实际数据长度
+typedef struct
+{
+    uint8_t data[32];
+    uint32_t length;
 } RS485_RxData_t;
 
 /**
- * @brief  RS485设备结构体
+ * @brief RS485 设备结构体
  */
-typedef struct {
-    USART_TypeDef* instance;  // USART实例（如USART1）
-    GPIO_TypeDef* tx_port;    // TX引脚端口
-    uint16_t tx_pin;          // TX引脚
-    GPIO_TypeDef* rx_port;    // RX引脚端口
-    uint16_t rx_pin;          // RX引脚
-    GPIO_TypeDef* de_port;    // DE引脚端口（方向控制）
-    uint16_t de_pin;          // DE引脚
-    uint32_t baudrate;        // 波特率 (bps)
-    RingBuffer_t rx_buffer;   // 接收环形缓冲区
+typedef struct
+{
+    Serial_Device_t *serial_dev; // 串口设备实例
+    RingBuffer_t tx_buffer;      // 发送缓冲区
+    RingBuffer_t rx_buffer;      // 接收缓冲区
 } RS485_Device_t;
 
-//RingBuffer tx_buffer, rx_buffer;
-#define RS485_TX_MODE() GPIO_SetBits(GPIOG, GPIO_Pin_8)
-#define RS485_RX_MODE() GPIO_ResetBits(GPIOG, GPIO_Pin_8)
+/**
+ * @brief 初始化 RS485 设备
+ * @param dev RS485 设备实例
+ * @return RS485_Status 操作状态
+ */
+RS485_Status rs485_init(RS485_Device_t *dev);
 
-extern USART_ConfigTypeDef USART2_Config;
-extern GPIO_ConfigTypeDef GPIO2_Config;
+/**
+ * @brief RS485 中断处理函数
+ * @param dev RS485 设备实例
+ */
+void rs485_irq_handler(RS485_Device_t *dev);
 
-void RS485_GPIO_Init(void) ;
-void rs485_init(void) ;
-void USART2_IRQHandler(void) ;
-void Buffer_Write_Tx(uint8_t data) ;
-void Buffer_Write_Rx(uint8_t data) ;
-uint8_t Buffer_Read_Rx(void) ;
-uint8_t Buffer_Read_Rx(void) ;
-void RS485_Send(void) ;
-void Buffer_Clear_Tx(void) ;
-void Buffer_Clear_Rx(void) ;
+/**
+ * @brief 发送数据
+ * @param dev RS485 设备实例
+ * @return RS485_Status 操作状态
+ */
+RS485_Status rs485_send(RS485_Device_t *dev);
 
+/**
+ * @brief 写入发送缓冲区
+ * @param dev RS485 设备实例
+ * @param data 要写入的数据
+ * @return RS485_Status 操作状态
+ */
+RS485_Status rs485_write_tx(RS485_Device_t *dev, uint8_t data);
 
+/**
+ * @brief 从接收缓冲区读取数据
+ * @param dev RS485 设备实例
+ * @param data 读取的数据
+ * @return RS485_Status 操作状态
+ */
+RS485_Status rs485_read_rx(RS485_Device_t *dev, uint8_t *data);
 
-#endif
+/**
+ * @brief 清空发送缓冲区
+ * @param dev RS485 设备实例
+ */
+void rs485_clear_tx(RS485_Device_t *dev);
+
+/**
+ * @brief 清空接收缓冲区
+ * @param dev RS485 设备实例
+ */
+void rs485_clear_rx(RS485_Device_t *dev);
+
+#endif /* __MY_RS485_H */

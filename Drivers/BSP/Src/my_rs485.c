@@ -1,130 +1,205 @@
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-03-29 17:44:10
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-05-03 00:21:45
+ * @FilePath: \Demo\Drivers\BSP\Src\my_rs485.c
+ * @Description: RS485 驱动实现
+ *
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
+ */
 #include "my_rs485.h"
+#include "pcf8574.h"
+#include "serial_driver.h"
+#include "ring_buffer.h"
+#include "log_system.h"
+#include "rtos_abstraction.h"
 #include "pch.h"
-// RS485方向控制引脚初始化
-void RS485_GPIO_Init(void) {
-    GPIO_InitTypeDef GPIO_InitStruct;
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOG, ENABLE);
-    GPIO_InitStruct.GPIO_Pin = GPIO_Pin_8;
-    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_OUT;
-    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-    GPIO_Init(GPIOG, &GPIO_InitStruct);
-    RS485_RX_MODE(); // 初始化为接收模式
-}
-void rs485_init(void) {
+/**
+ * @brief 初始化 RS485 设备
+ * @param dev RS485 设备实例
+ * @return RS485_Status 操作状态
+ */
+RS485_Status rs485_init(RS485_Device_t *dev)
+{
+    if (!dev || !dev->serial_dev)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Invalid device or serial device");
+        return RS485_ERR_INIT;
+    }
 
+    if (RingBuffer_Init(&dev->tx_buffer, BUFFER_SIZE, sizeof(uint8_t)) != RB_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to init tx buffer");
+        return RS485_ERR_INIT;
+    }
 
-    // 初始化发送和接收缓冲区
-    tx_buffer.head = 0;
-    tx_buffer.tail = 0;
-    rx_buffer.head = 0;
-    rx_buffer.tail = 0;
-    pcf8574_init(); // 初始化PCF8574，用于控制RE脚
-    // 初始化RS485 GPIO
-    RS485_GPIO_Init();
-    USARTx_Init(&USART2_Config, &GPIO2_Config); // 初始化串口
-    
-    
+    if (RingBuffer_Init(&dev->rx_buffer, BUFFER_SIZE, sizeof(uint8_t)) != RB_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to init rx buffer");
+        return RS485_ERR_INIT;
+    }
+
+    if (pcf8574_init() != 0)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to init PCF8574");
+        return RS485_ERR_INIT;
+    }
+
+    if (Serial_Driver_Init(dev->serial_dev) != SERIAL_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to init serial driver");
+        return RS485_ERR_INIT;
+    }
+
+    if (rs485_tx_set(0) != IIC_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to set RX mode");
+        return RS485_ERR_INIT;
+    }
+
+    Log_Message(LOG_LEVEL_INFO, "[RS485] Initialized successfully");
+    return RS485_OK;
 }
-// 中断服务函数
-void USART2_IRQHandler(void) {
-    if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET) {
-        uint8_t data = USART_ReceiveData(USART2);
-        // 将数据写入接收缓冲区
-        if ((rx_buffer.head + 1) % BUFFER_SIZE != rx_buffer.tail) {
-            rx_buffer.buffer[rx_buffer.head] = data;
-            rx_buffer.head = (rx_buffer.head + 1) % BUFFER_SIZE;
+
+/**
+ * @brief RS485 中断处理函数
+ * @param dev RS485 设备实例
+ */
+void rs485_irq_handler(RS485_Device_t *dev)
+{
+    if (!dev || !dev->serial_dev)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Invalid device in IRQ");
+        return;
+    }
+
+    if (USART_GetITStatus(dev->serial_dev->instance, USART_IT_RXNE) != RESET)
+    {
+        uint8_t data = USART_ReceiveData(dev->serial_dev->instance);
+        if (RingBuffer_Write(&dev->rx_buffer, &data) != RB_OK)
+        {
+            Log_Message(LOG_LEVEL_WARNING, "[RS485] RX buffer full");
         }
-        USART_ClearITPendingBit(USART2, USART_IT_RXNE);
+        USART_ClearITPendingBit(dev->serial_dev->instance, USART_IT_RXNE);
     }
 }
 
- // 写入发送缓冲区（主循环调用）
- void Buffer_Write_Tx(uint8_t data) {
-     if ((tx_buffer.head + 1) % BUFFER_SIZE != tx_buffer.tail) {
-         tx_buffer.buffer[tx_buffer.head] = data;
-         tx_buffer.head = (tx_buffer.head + 1) % BUFFER_SIZE;
-     }
- }
+/**
+ * @brief 发送数据
+ * @param dev RS485 设备实例
+ * @return RS485_Status 操作状态
+ */
+RS485_Status rs485_send(RS485_Device_t *dev)
+{
+    if (!dev || !dev->serial_dev)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Invalid device");
+        return RS485_ERR_INIT;
+    }
 
- // 写入接收缓冲区（主循环调用）
- void Buffer_Write_Rx(uint8_t data) {
-     if ((rx_buffer.head + 1) % BUFFER_SIZE != rx_buffer.tail) {
-         rx_buffer.buffer[rx_buffer.head] = data;
-         rx_buffer.head = (rx_buffer.head + 1) % BUFFER_SIZE;
-     }
- }
- // 从接收缓冲区读取（主循环调用）
- uint8_t Buffer_Read_Rx(void) {
-     uint8_t data = 0;
-     if (rx_buffer.head != rx_buffer.tail) {
-         data = rx_buffer.buffer[rx_buffer.tail];
-         rx_buffer.tail = (rx_buffer.tail + 1) % BUFFER_SIZE;
-     }
-     return data;
- }
+    if (RingBuffer_IsEmpty(&dev->tx_buffer))
+    {
+        return RS485_ERR_NO_DATA;
+    }
 
-// 发送数据（主循环调用）
-void RS485_Send(void) {
-    if (tx_buffer.tail != tx_buffer.head) {
-        RS485_TX_MODE(); // 切换为发送模式
-        USART_SendData(USART2, tx_buffer.buffer[tx_buffer.tail]);
-        tx_buffer.tail = (tx_buffer.tail + 1) % BUFFER_SIZE;
-        // 等待发送完成（轮询）
-        while (USART_GetFlagStatus(USART2, USART_FLAG_TC) == RESET);
-        RS485_RX_MODE(); // 恢复接收模式
+    if (rs485_tx_set(1) != IIC_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to set TX mode");
+        return RS485_ERR_TRANSMIT;
+    }
+
+    uint8_t data;
+    if (RingBuffer_Read(&dev->tx_buffer, &data) != RB_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to read TX buffer");
+        rs485_tx_set(0);
+        return RS485_ERR_TRANSMIT;
+    }
+
+    if (Serial_Driver_SendData(dev->serial_dev, &data, 1) != SERIAL_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to send data");
+        rs485_tx_set(0);
+        return RS485_ERR_TRANSMIT;
+    }
+
+    while (USART_GetFlagStatus(dev->serial_dev->instance, USART_FLAG_TC) == RESET)
+        ;
+    if (rs485_tx_set(0) != IIC_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Failed to set RX mode");
+        return RS485_ERR_TRANSMIT;
+    }
+
+    return RS485_OK;
+}
+
+/**
+ * @brief 写入发送缓冲区
+ * @param dev RS485 设备实例
+ * @param data 要写入的数据
+ * @return RS485_Status 操作状态
+ */
+RS485_Status rs485_write_tx(RS485_Device_t *dev, uint8_t data)
+{
+    if (!dev)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Invalid device");
+        return RS485_ERR_INIT;
+    }
+
+    if (RingBuffer_Write(&dev->tx_buffer, &data) != RB_OK)
+    {
+        Log_Message(LOG_LEVEL_WARNING, "[RS485] TX buffer full");
+        return RS485_ERR_BUFFER_FULL;
+    }
+
+    return RS485_OK;
+}
+
+/**
+ * @brief 从接收缓冲区读取数据
+ * @param dev RS485 设备实例
+ * @param data 读取的数据
+ * @return RS485_Status 操作状态
+ */
+RS485_Status rs485_read_rx(RS485_Device_t *dev, uint8_t *data)
+{
+    if (!dev || !data)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485] Invalid device or pointer");
+        return RS485_ERR_INIT;
+    }
+
+    if (RingBuffer_Read(&dev->rx_buffer, data) != RB_OK)
+    {
+        return RS485_ERR_NO_DATA;
+    }
+
+    return RS485_OK;
+}
+
+/**
+ * @brief 清空发送缓冲区
+ * @param dev RS485 设备实例
+ */
+void rs485_clear_tx(RS485_Device_t *dev)
+{
+    if (dev)
+    {
+        RingBuffer_Clear(&dev->tx_buffer);
     }
 }
 
-// 写入发送缓冲区
-void Buffer_Write(RingBuffer *buf, uint8_t data) {
-    buf->buffer[buf->head] = data;
-    buf->head = (buf->head + 1) % BUFFER_SIZE;
+/**
+ * @brief 清空接收缓冲区
+ * @param dev RS485 设备实例
+ */
+void rs485_clear_rx(RS485_Device_t *dev)
+{
+    if (dev)
+    {
+        RingBuffer_Clear(&dev->rx_buffer);
+    }
 }
-
-// 从接收缓冲区读取
-uint8_t Buffer_Read(RingBuffer *buf) {
-    uint8_t data = buf->buffer[buf->tail];
-    buf->tail = (buf->tail + 1) % BUFFER_SIZE;
-    return data;
-}
-// 清空发送缓冲区
-void Buffer_Clear_Tx(void) {
-    tx_buffer.head = 0;
-    tx_buffer.tail = 0;
-}
-// 清空接收缓冲区
-void Buffer_Clear_Rx(void) {
-    rx_buffer.head = 0;
-    rx_buffer.tail = 0;
-}
-
-
-USART_ConfigTypeDef USART2_Config = {
-    .USARTx = USART2,
-    .BaudRate = 115200,
-    .USART_Mode = USART_Mode_Rx | USART_Mode_Tx,
-    .USART_IRQChannel = USART2_IRQn,
-    .USART_CLK = RCC_APB2Periph_USART1,
-    .NVIC_EnableIRQ = 1,
-    .NVIC_IRQChannelPreemptionPriority = 1,
-    .NVIC_IRQChannelSubPriority = 1,
-    .USART_IRQChannelCmd = ENABLE
-};
-
-
-GPIO_ConfigTypeDef GPIO2_Config = {
-    .GPIOx_TX = GPIOA,
-    .GPIOx_RX = GPIOA,
-    .GPIO_Pin_TX = GPIO_Pin_2,
-    .GPIO_Pin_RX = GPIO_Pin_3,
-    .GPIO_CLK = RCC_AHB1Periph_GPIOA,
-    .GPIO_AF = GPIO_AF_USART2,
-    .GPIO_PinSource_RX = GPIO_PinSource3,
-    .GPIO_PinSource_TX = GPIO_PinSource2,
-    .GPIO_Mode = GPIO_Mode_AF,
-    .GPIO_Speed = GPIO_Speed_50MHz,
-    .GPIO_OType = GPIO_OType_PP,
-    .GPIO_PuPd = GPIO_PuPd_UP
-};
-

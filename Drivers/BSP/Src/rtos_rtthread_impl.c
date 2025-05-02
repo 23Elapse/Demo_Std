@@ -11,7 +11,7 @@
  * @brief  创建信号量
  * @retval 信号量句柄，失败返回 NULL
  */
-static void* RTThread_SemaphoreCreate(void)
+static void *RTThread_SemaphoreCreate(void)
 {
     return rt_mutex_create("serial", RT_IPC_FLAG_FIFO);
 }
@@ -22,7 +22,8 @@ static void* RTThread_SemaphoreCreate(void)
  */
 static void RTThread_SemaphoreDelete(void *sem)
 {
-    if (sem) {
+    if (sem)
+    {
         rt_mutex_delete((rt_mutex_t)sem);
     }
 }
@@ -35,7 +36,8 @@ static void RTThread_SemaphoreDelete(void *sem)
  */
 static int RTThread_SemaphoreTake(void *sem, uint32_t timeout)
 {
-    if (!sem) return 0;
+    if (!sem)
+        return 0;
     return rt_mutex_take((rt_mutex_t)sem, timeout) == RT_EOK ? 1 : 0;
 }
 
@@ -45,7 +47,8 @@ static int RTThread_SemaphoreTake(void *sem, uint32_t timeout)
  */
 static void RTThread_SemaphoreGive(void *sem)
 {
-    if (sem) {
+    if (sem)
+    {
         rt_mutex_release((rt_mutex_t)sem);
     }
 }
@@ -58,13 +61,16 @@ static void RTThread_SemaphoreGive(void *sem)
  */
 static int RTThread_SemaphoreGiveFromISR(void *sem, void *xHigherPriorityTaskWoken)
 {
-    if (!sem) return 0;
+    if (!sem)
+        return 0;
     rt_bool_t need_schedule = RT_FALSE;
     rt_err_t ret = rt_mutex_release((rt_mutex_t)sem); // RT-Thread 中断中释放信号量
-    if (ret == RT_EOK) {
+    if (ret == RT_EOK)
+    {
         need_schedule = RT_TRUE;
     }
-    if (xHigherPriorityTaskWoken) {
+    if (xHigherPriorityTaskWoken)
+    {
         *(rt_bool_t *)xHigherPriorityTaskWoken = need_schedule;
     }
     return ret == RT_EOK ? 1 : 0;
@@ -76,7 +82,8 @@ static int RTThread_SemaphoreGiveFromISR(void *sem, void *xHigherPriorityTaskWok
  */
 static void RTThread_YieldFromISR(void *xHigherPriorityTaskWoken)
 {
-    if (xHigherPriorityTaskWoken && *(rt_bool_t *)xHigherPriorityTaskWoken) {
+    if (xHigherPriorityTaskWoken && *(rt_bool_t *)xHigherPriorityTaskWoken)
+    {
         rt_schedule(); // RT-Thread 中断调度
     }
 }
@@ -108,10 +115,11 @@ static void RTThread_Delay(uint32_t ticks)
  * @param  priority: 任务优先级
  * @retval 任务句柄，失败返回 NULL
  */
-static void* RTThread_TaskCreate(void (*task_func)(void*), const char* name, uint32_t stack_size, void* param, uint32_t priority)
+static void *RTThread_TaskCreate(void (*task_func)(void *), const char *name, uint32_t stack_size, void *param, uint32_t priority)
 {
     rt_thread_t task = rt_thread_create(name, task_func, param, stack_size, priority, 10);
-    if (task) {
+    if (task)
+    {
         rt_thread_startup(task);
     }
     return task;
@@ -121,9 +129,10 @@ static void* RTThread_TaskCreate(void (*task_func)(void*), const char* name, uin
  * @brief  删除任务
  * @param  task: 任务句柄
  */
-static void RTThread_TaskDelete(void* task)
+static void RTThread_TaskDelete(void *task)
 {
-    if (task) {
+    if (task)
+    {
         rt_thread_delete((rt_thread_t)task);
     }
 }
@@ -141,8 +150,7 @@ const RTOS_Ops_t RTThread_Ops = {
     .GetTickCount = RTThread_GetTickCount,
     .Delay = RTThread_Delay,
     .TaskCreate = RTThread_TaskCreate,
-    .TaskDelete = RTThread_TaskDelete
-};
+    .TaskDelete = RTThread_TaskDelete};
 
 /*
  * 示例用法：

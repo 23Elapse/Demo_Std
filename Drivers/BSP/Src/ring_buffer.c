@@ -10,13 +10,16 @@
  */
 RB_Status RingBuffer_Init(RingBuffer_t *rb, uint32_t capacity, uint32_t element_size)
 {
-    if (!rb || capacity == 0 || element_size == 0) return RB_ERROR_INIT;
+    if (!rb || capacity == 0 || element_size == 0)
+        return RB_ERROR_INIT;
 
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops) return RB_ERROR_INIT;
+    if (!rtos_ops)
+        return RB_ERROR_INIT;
 
     rb->buffer = (uint8_t *)rtos_ops->Malloc(capacity * element_size);
-    if (!rb->buffer) return RB_ERROR_INIT;
+    if (!rb->buffer)
+        return RB_ERROR_INIT;
 
     rb->element_size = element_size;
     rb->capacity = capacity;
@@ -25,7 +28,8 @@ RB_Status RingBuffer_Init(RingBuffer_t *rb, uint32_t capacity, uint32_t element_
     rb->count = 0;
 
     rb->sem = rtos_ops->SemaphoreCreate();
-    if (!rb->sem) {
+    if (!rb->sem)
+    {
         rtos_ops->Free(rb->buffer);
         return RB_ERROR_INIT;
     }
@@ -40,10 +44,12 @@ RB_Status RingBuffer_Init(RingBuffer_t *rb, uint32_t capacity, uint32_t element_
  */
 RB_Status RingBuffer_Deinit(RingBuffer_t *rb)
 {
-    if (!rb || !rb->buffer) return RB_ERROR_INIT;
+    if (!rb || !rb->buffer)
+        return RB_ERROR_INIT;
 
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops) return RB_ERROR_INIT;
+    if (!rtos_ops)
+        return RB_ERROR_INIT;
 
     rtos_ops->Free(rb->buffer);
     rb->buffer = NULL;
@@ -53,7 +59,8 @@ RB_Status RingBuffer_Deinit(RingBuffer_t *rb)
     rb->tail = 0;
     rb->count = 0;
 
-    if (rb->sem) {
+    if (rb->sem)
+    {
         rtos_ops->SemaphoreDelete(rb->sem);
         rb->sem = NULL;
     }
@@ -69,12 +76,15 @@ RB_Status RingBuffer_Deinit(RingBuffer_t *rb)
  */
 RB_Status RingBuffer_Write(RingBuffer_t *rb, const void *data)
 {
-    if (!rb || !rb->buffer || !data) return RB_ERROR_INIT;
+    if (!rb || !rb->buffer || !data)
+        return RB_ERROR_INIT;
 
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops) return RB_ERROR_INIT;
+    if (!rtos_ops)
+        return RB_ERROR_INIT;
 
-    if (rb->count >= rb->capacity) return RB_ERROR_BUFFER_FULL;
+    if (rb->count >= rb->capacity)
+        return RB_ERROR_BUFFER_FULL;
 
     memcpy(rb->buffer + rb->tail * rb->element_size, data, rb->element_size);
     rb->tail = (rb->tail + 1) % rb->capacity;
@@ -92,18 +102,22 @@ RB_Status RingBuffer_Write(RingBuffer_t *rb, const void *data)
  */
 RB_Status RingBuffer_WriteFromISR(RingBuffer_t *rb, const void *data, void *xHigherPriorityTaskWoken)
 {
-    if (!rb || !rb->buffer || !data) return RB_ERROR_INIT;
+    if (!rb || !rb->buffer || !data)
+        return RB_ERROR_INIT;
 
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops) return RB_ERROR_INIT;
+    if (!rtos_ops)
+        return RB_ERROR_INIT;
 
-    if (rb->count >= rb->capacity) return RB_ERROR_BUFFER_FULL;
+    if (rb->count >= rb->capacity)
+        return RB_ERROR_BUFFER_FULL;
 
     memcpy(rb->buffer + rb->tail * rb->element_size, data, rb->element_size);
     rb->tail = (rb->tail + 1) % rb->capacity;
     rb->count++;
 
-    if (rb->sem) {
+    if (rb->sem)
+    {
         rtos_ops->SemaphoreGiveFromISR(rb->sem, xHigherPriorityTaskWoken);
     }
 
@@ -118,12 +132,15 @@ RB_Status RingBuffer_WriteFromISR(RingBuffer_t *rb, const void *data, void *xHig
  */
 RB_Status RingBuffer_Read(RingBuffer_t *rb, void *data)
 {
-    if (!rb || !rb->buffer || !data) return RB_ERROR_INIT;
+    if (!rb || !rb->buffer || !data)
+        return RB_ERROR_INIT;
 
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops) return RB_ERROR_INIT;
+    if (!rtos_ops)
+        return RB_ERROR_INIT;
 
-    if (rb->count == 0) return RB_ERROR_BUFFER_EMPTY;
+    if (rb->count == 0)
+        return RB_ERROR_BUFFER_EMPTY;
 
     memcpy(data, rb->buffer + rb->head * rb->element_size, rb->element_size);
     rb->head = (rb->head + 1) % rb->capacity;
@@ -139,7 +156,8 @@ RB_Status RingBuffer_Read(RingBuffer_t *rb, void *data)
  */
 bool RingBuffer_IsFull(const RingBuffer_t *rb)
 {
-    if (!rb) return false;
+    if (!rb)
+        return false;
     return (rb->count == rb->capacity);
 }
 
@@ -150,7 +168,8 @@ bool RingBuffer_IsFull(const RingBuffer_t *rb)
  */
 bool RingBuffer_IsEmpty(const RingBuffer_t *rb)
 {
-    if (!rb) return true;
+    if (!rb)
+        return true;
     return (rb->count == 0);
 }
 
@@ -161,7 +180,7 @@ bool RingBuffer_IsEmpty(const RingBuffer_t *rb)
  */
 bool RingBuffer_IsAvailable(const RingBuffer_t *rb)
 {
-    if (!rb) return false;
+    if (!rb)
+        return false;
     return !RingBuffer_IsEmpty(rb);
 }
-

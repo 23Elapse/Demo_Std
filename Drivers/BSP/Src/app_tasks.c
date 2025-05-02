@@ -1,0 +1,340 @@
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-04-27 19:10:06
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-05-03 01:13:43
+ * @FilePath: \Demo\Drivers\BSP\Src\app_tasks.c
+ * @Description: 应用任务实现
+ *
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
+ */
+#include "app_tasks.h"
+#include "device_manager.h"
+#include "rtos_abstraction.h"
+#include "log_system.h"
+#include "api_eeprom.h"
+#include "api_wifi.h"
+#include "can_driver.h"
+#include "serial_interface.h"
+#include "pch.h"
+
+// 设备实例定义
+Serial_Device_t RS485_Device = {
+    .instance = USART1,
+    .tx_port = GPIOA,
+    .tx_pin = GPIO_Pin_9,
+    .rx_port = GPIOA,
+    .rx_pin = GPIO_Pin_10,
+    .de_port = GPIOA,
+    .de_pin = GPIO_Pin_8,
+    .baudrate = 115200,
+    .af = GPIO_AF_USART1,
+    .irqn = USART1_IRQn,
+    .mode = RS485_MODE,
+    .silent_ticks = 0,
+    .rx_buffer = {0}};
+
+Serial_Device_t UART_Device = {
+    .instance = USART2,
+    .tx_port = GPIOA,
+    .tx_pin = GPIO_Pin_2,
+    .rx_port = GPIOA,
+    .rx_pin = GPIO_Pin_3,
+    .de_port = NULL,
+    .de_pin = 0,
+    .baudrate = 9600,
+    .af = GPIO_AF_USART2,
+    .irqn = USART2_IRQn,
+    .mode = UART_MODE,
+    .silent_ticks = 0,
+    .rx_buffer = {0}};
+
+Serial_Device_t wifi_serial = {
+    .instance = USART3,
+    .tx_port = GPIOB,
+    .tx_pin = GPIO_Pin_10,
+    .rx_port = GPIOB,
+    .rx_pin = GPIO_Pin_11,
+    .de_port = NULL,
+    .de_pin = 0,
+    .baudrate = 115200,
+    .af = GPIO_AF_USART3,
+    .irqn = USART3_IRQn,
+    .mode = UART_MODE,
+    .silent_ticks = 0,
+    .rx_buffer = {0}};
+
+CAN_Device_t can_dev = {
+    .instance = CAN1,
+    .tx_port = GPIOA,
+    .tx_pin = GPIO_Pin_12,
+    .rx_port = GPIOA,
+    .rx_pin = GPIO_Pin_11,
+    .baudrate = 500000,
+    .af = GPIO_AF_CAN1,
+    .irqn = CAN1_RX0_IRQn,
+    .rx_buffer = {0}};
+
+// IIC 设备实例
+IIC_Ops_t IIC1_EEPROM = {.dev_addr = 0xA0, .ReadByte = EEPROMReadByteFromReg, .WriteByte = EEPROMWriteByteToReg};
+IIC_Ops_t PCF8574 = {.dev_addr = 0x20, .ReadByte = PCF8574_ReadBit, .WriteByte = PCF8574_WriteBit};
+
+// 设备管理器实例
+#define MAX_DEVICES 10
+static Device_Handle_t device_array[MAX_DEVICES];
+static Device_Manager_t device_mgr;
+
+// 中断处理函数
+void USART1_IRQHandler(void)
+{
+    Serial_Driver_IRQHandler(&RS485_Device);
+}
+
+void USART2_IRQHandler(void)
+{
+    Serial_Driver_IRQHandler(&UART_Device);
+}
+
+void USART3_IRQHandler(void)
+{
+    Serial_Driver_IRQHandler(&wifi_serial);
+}
+
+void CAN1_RX0_IRQHandler(void)
+{
+    CAN_IRQHandler(&can_dev);
+}
+
+/**
+ * @brief 应用初始化函数
+ */
+void App_Init(void)
+{
+    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+    if (!rtos_ops)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[App] RTOS ops not initialized");
+        return;
+    }
+
+    RTOS_SetOps(&FreeRTOS_Ops);
+    IIC_INIT();
+    pcf8574_init();
+    Log_Init();
+
+    // 初始化设备管理器
+    DeviceManager_Init(&device_mgr, device_array, MAX_DEVICES);
+
+    // 注册设备
+    DeviceManager_Register(&device_mgr, &RS485_Device, DEVICE_TYPE_SERIAL, 1);
+    DeviceManager_Register(&device_mgr, &UART_Device, DEVICE_TYPE_SERIAL, 2);
+    DeviceManager_Register(&device_mgr, &wifi_serial, DEVICE_TYPE_WIFI, 1);
+    DeviceManager_Register(&device_mgr, &can_dev, DEVICE_TYPE_CAN, 1);
+    DeviceManager_Register(&device_mgr, &IIC1_EEPROM, DEVICE_TYPE_EEPROM, 1);
+    DeviceManager_Register(&device_mgr, &PCF8574, DEVICE_TYPE_PCF8574, 1);
+
+    // 初始化串口设备
+    Device_Handle_t *rs485_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 1);
+    Device_Handle_t *uart_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 2);
+    Device_Handle_t *wifi_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_WIFI, 1);
+    Device_Handle_t *can_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_CAN, 1);
+
+    if (rs485_handle && Serial_Operations.Init((Serial_Device_t *)rs485_handle->device) != SERIAL_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init RS485");
+    }
+    if (uart_handle && Serial_Operations.Init((Serial_Device_t *)uart_handle->device) != SERIAL_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init UART");
+    }
+    if (wifi_handle && Serial_Operations.Init((Serial_Device_t *)wifi_handle->device) != SERIAL_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init WiFi serial");
+    }
+    if (can_handle && CAN_Operations.Init((CAN_Device_t *)can_handle->device) != CAN_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init CAN");
+    }
+
+    // 创建任务
+    rtos_ops->TaskCreate(App_RS485_PollTask, "RS485_Poll", 256, rs485_handle->device, 1);
+    rtos_ops->TaskCreate(App_SerialRxTask, "Serial_Rx", 256, rs485_handle->device, 1);
+    rtos_ops->TaskCreate(App_ErrorLogTask, "Error_Log", 256, NULL, 1);
+    rtos_ops->TaskCreate(App_EEPROMTask, "EEPROM", 256, NULL, 1);
+    rtos_ops->TaskCreate(App_WiFiTask, "WiFi", 512, wifi_handle->device, 1);
+    rtos_ops->TaskCreate(App_CANTask, "CAN", 256, can_handle->device, 1);
+}
+
+/**
+ * @brief RS485 轮询任务
+ * @param pvParameters 任务参数（串口设备实例）
+ */
+void App_RS485_PollTask(void *pvParameters)
+{
+    Serial_Device_t *dev = (Serial_Device_t *)pvParameters;
+    while (1)
+    {
+        Serial_Operations.PollSendRS485(dev);
+        const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+        if (rtos_ops)
+            rtos_ops->Delay(100);
+    }
+}
+
+/**
+ * @brief 串口接收任务
+ * @param pvParameters 任务参数（串口设备实例）
+ */
+void App_SerialRxTask(void *pvParameters)
+{
+    Serial_Device_t *dev = (Serial_Device_t *)pvParameters;
+    Protocol_Data_t rx_data;
+    while (1)
+    {
+        if (Serial_Operations.ReceiveFromBuffer(dev, &rx_data, 0xFFFFFFFF) == SERIAL_OK)
+        {
+            if (rx_data.is_rs485)
+            {
+                RS485_Frame_t *frame = &rx_data.rs485_frame;
+                Log_Message(LOG_LEVEL_INFO, "[App] Received RS485 frame: addr1=0x%02X, addr2=0x%02X, cmd=0x%02X",
+                            frame->addr1, frame->addr2, frame->cmd);
+            }
+            else
+            {
+                Log_Message(LOG_LEVEL_INFO, "[App] Received UART data: length=%d", rx_data.uart_data.length);
+            }
+        }
+    }
+}
+
+/**
+ * @brief 错误日志任务
+ * @param pvParameters 任务参数
+ */
+void App_ErrorLogTask(void *pvParameters)
+{
+    Serial_ErrorLog_t log;
+    while (1)
+    {
+        if (Serial_Operations.GetErrorLog(&log, 0xFFFFFFFF) == SERIAL_OK)
+        {
+            Log_Message(LOG_LEVEL_WARNING, "[App] Error Log: type=%d, instance=%p, timestamp=%u",
+                        log.type, log.instance, (unsigned int)log.timestamp);
+        }
+    }
+}
+
+/**
+ * @brief EEPROM 任务
+ * @param pvParameters 任务参数
+ */
+void App_EEPROMTask(void *pvParameters)
+{
+    Device_Handle_t *eeprom_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_EEPROM, 1);
+    if (!eeprom_handle)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[App] EEPROM handle not found");
+        vTaskDelete(NULL);
+    }
+
+    while (1)
+    {
+        uint8_t write_data[] = {0x11, 0x22, 0x33, 0x44};
+        if (EEPROMWriteBytesToReg(0x00, write_data, 4) == IIC_OK)
+        {
+            uint8_t read_data[4];
+            if (EEPROMReadBytesFromReg(0x00, read_data, 4) == IIC_OK)
+            {
+                Log_Message(LOG_LEVEL_INFO, "[App] EEPROM read: 0x%02X, 0x%02X, 0x%02X, 0x%02X",
+                            read_data[0], read_data[1], read_data[2], read_data[3]);
+            }
+            else
+            {
+                Log_Message(LOG_LEVEL_ERROR, "[App] EEPROM read failed");
+            }
+        }
+        else
+        {
+            Log_Message(LOG_LEVEL_ERROR, "[App] EEPROM write failed");
+        }
+        const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+        if (rtos_ops)
+            rtos_ops->Delay(5000);
+    }
+}
+
+/**
+ * @brief WiFi 任务
+ * @param pvParameters 任务参数（串口设备实例）
+ */
+void App_WiFiTask(void *pvParameters)
+{
+    Serial_Device_t *serial_dev = (Serial_Device_t *)pvParameters;
+    if (WiFi_Init(serial_dev) != AT_ERR_NONE)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[App] WiFi initialization failed");
+        vTaskDelete(NULL);
+    }
+
+    while (1)
+    {
+        if (WiFi_ConnectTCPServer(serial_dev, TCP_SERVER_IP, TCP_PORT) == AT_ERR_NONE)
+        {
+            uint8_t eeprom_data[] = {0x11, 0x22, 0x33, 0x44};
+            if (EEPROMReadBytesFromReg(0x00, eeprom_data, 4) == IIC_OK)
+            {
+                if (WiFi_SendTCPData(serial_dev, eeprom_data, 4) == AT_ERR_NONE)
+                {
+                    uint8_t rx_buffer[256];
+                    uint16_t rx_len = 256;
+                    if (WiFi_ReceiveTCPData(serial_dev, rx_buffer, &rx_len, 5000) == AT_ERR_NONE)
+                    {
+                        Log_Message(LOG_LEVEL_INFO, "[App] Received TCP data: %.*s", rx_len, rx_buffer);
+                    }
+                }
+            }
+        }
+        const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+        if (rtos_ops)
+            rtos_ops->Delay(10000);
+    }
+}
+
+/**
+ * @brief CAN 任务
+ * @param pvParameters 任务参数（CAN 设备实例）
+ */
+void App_CANTask(void *pvParameters)
+{
+    CAN_Device_t *can_dev = (CAN_Device_t *)pvParameters;
+    CAN_Message_t tx_msg = {
+        .id = 0x123,
+        .length = 8,
+        .data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}};
+
+    while (1)
+    {
+        if (CAN_Operations.SendMessage(can_dev, &tx_msg) == CAN_OK)
+        {
+            Log_Message(LOG_LEVEL_INFO, "[App] CAN message sent: ID=0x%03X", tx_msg.id);
+        }
+
+        CAN_Message_t rx_msg;
+        if (CAN_Operations.ReceiveMessage(can_dev, &rx_msg, 1000) == CAN_OK)
+        {
+            Log_Message(LOG_LEVEL_INFO, "[App] CAN message received: ID=0x%03X, length=%d", rx_msg.id, rx_msg.length);
+        }
+
+        const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+        if (rtos_ops)
+            rtos_ops->Delay(2000);
+    }
+}
+
+/*
+ * 示例用法：
+ * 1. 调用 App_Init 初始化所有设备和任务
+ * App_Init();
+ *
+ * 2. 设备通过 DeviceManager 管理，任务自动运行
+ */

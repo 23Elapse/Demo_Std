@@ -13,7 +13,7 @@
  * @brief  创建信号量
  * @retval 信号量句柄，失败返回 NULL
  */
-static void* FreeRTOS_SemaphoreCreate(void)
+static void *FreeRTOS_SemaphoreCreate(void)
 {
     return xSemaphoreCreateMutex();
 }
@@ -24,7 +24,8 @@ static void* FreeRTOS_SemaphoreCreate(void)
  */
 static void FreeRTOS_SemaphoreDelete(void *sem)
 {
-    if (sem) {
+    if (sem)
+    {
         vSemaphoreDelete(sem);
     }
 }
@@ -37,7 +38,8 @@ static void FreeRTOS_SemaphoreDelete(void *sem)
  */
 static int FreeRTOS_SemaphoreTake(void *sem, uint32_t timeout)
 {
-    if (!sem) return 0;
+    if (!sem)
+        return 0;
     return xSemaphoreTake(sem, timeout) == pdTRUE ? 1 : 0;
 }
 
@@ -47,7 +49,8 @@ static int FreeRTOS_SemaphoreTake(void *sem, uint32_t timeout)
  */
 static void FreeRTOS_SemaphoreGive(void *sem)
 {
-    if (sem) {
+    if (sem)
+    {
         xSemaphoreGive(sem);
     }
 }
@@ -60,10 +63,12 @@ static void FreeRTOS_SemaphoreGive(void *sem)
  */
 static int FreeRTOS_SemaphoreGiveFromISR(void *sem, void *xHigherPriorityTaskWoken)
 {
-    if (!sem) return 0;
+    if (!sem)
+        return 0;
     BaseType_t woken = pdFALSE;
     int ret = xSemaphoreGiveFromISR(sem, &woken);
-    if (xHigherPriorityTaskWoken) {
+    if (xHigherPriorityTaskWoken)
+    {
         *(BaseType_t *)xHigherPriorityTaskWoken = woken;
     }
     return ret == pdTRUE ? 1 : 0;
@@ -75,7 +80,8 @@ static int FreeRTOS_SemaphoreGiveFromISR(void *sem, void *xHigherPriorityTaskWok
  */
 static void FreeRTOS_YieldFromISR(void *xHigherPriorityTaskWoken)
 {
-    if (xHigherPriorityTaskWoken && *(BaseType_t *)xHigherPriorityTaskWoken) {
+    if (xHigherPriorityTaskWoken && *(BaseType_t *)xHigherPriorityTaskWoken)
+    {
         portYIELD_FROM_ISR(*(BaseType_t *)xHigherPriorityTaskWoken);
     }
 }
@@ -107,7 +113,7 @@ static void FreeRTOS_Delay(uint32_t ticks)
  * @param  priority: 任务优先级
  * @retval 任务句柄，失败返回 NULL
  */
-static void* FreeRTOS_TaskCreate(void (*task_func)(void*), const char* name, uint32_t stack_size, void* param, uint32_t priority)
+static void *FreeRTOS_TaskCreate(void (*task_func)(void *), const char *name, uint32_t stack_size, void *param, uint32_t priority)
 {
     TaskHandle_t task;
     BaseType_t ret = xTaskCreate(task_func, name, stack_size, param, priority, &task);
@@ -118,9 +124,10 @@ static void* FreeRTOS_TaskCreate(void (*task_func)(void*), const char* name, uin
  * @brief  删除任务
  * @param  task: 任务句柄
  */
-static void FreeRTOS_TaskDelete(void* task)
+static void FreeRTOS_TaskDelete(void *task)
 {
-    if (task) {
+    if (task)
+    {
         vTaskDelete((TaskHandle_t)task);
     }
 }
@@ -130,7 +137,7 @@ static void FreeRTOS_TaskDelete(void* task)
  * @param  size: 分配的内存大小（字节）
  * @retval 分配的内存指针，失败返回 NULL
  */
-static void* FreeRTOS_Malloc(size_t size)
+static void *FreeRTOS_Malloc(size_t size)
 {
     return pvPortMalloc(size);
 }
@@ -141,7 +148,8 @@ static void* FreeRTOS_Malloc(size_t size)
  */
 static void FreeRTOS_Free(void *ptr)
 {
-    if (ptr) {
+    if (ptr)
+    {
         vPortFree(ptr);
     }
 }
@@ -161,8 +169,7 @@ const RTOS_Ops_t FreeRTOS_Ops = {
     .TaskCreate = FreeRTOS_TaskCreate,
     .TaskDelete = FreeRTOS_TaskDelete,
     .Malloc = FreeRTOS_Malloc,
-    .Free = FreeRTOS_Free
-};
+    .Free = FreeRTOS_Free};
 /*
  * 示例用法：
  * 1. 初始化 RTOS 抽象层
@@ -181,4 +188,3 @@ const RTOS_Ops_t FreeRTOS_Ops = {
  * }
  * rtos_ops->TaskCreate(MyTask, "MyTask", 256, NULL, 3);
  */
-
