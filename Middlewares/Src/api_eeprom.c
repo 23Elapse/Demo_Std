@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-18 20:46:08
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 00:55:57
+ * @LastEditTime: 2025-05-03 15:00:00
  * @FilePath: \Demo\Middlewares\Src\api_eeprom.c
  * @Description: EEPROM 驱动实现
  *
@@ -420,32 +420,3 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
     Log_Message(LOG_LEVEL_INFO, "[EEPROM] Wrote %d bytes to reg 0x%02X", length, reg - length);
     return IIC_OK;
 }
-
-/*
- * 示例用法：
- * 1. 设置 RTOS 抽象层
- * RTOS_SetOps(&FreeRTOS_Ops); // 或 RTThread_Ops
- *
- * 2. 初始化 IIC 设备
- * IIC_INIT();
- *
- * 3. 检测设备
- * if (IIC_Check(&IIC1_config, &IIC1_EEPROM) == 0) {
- *     Log_Message(LOG_LEVEL_INFO, "EEPROM detected!");
- * }
- *
- * 4. 单字节读写操作
- * uint8_t data = 0xAA;
- * EEPROMWriteByteToReg(0x00, data);
- * uint8_t read_data;
- * EEPROMReadByteFromReg(0x00, &read_data);
- * Log_Message(LOG_LEVEL_INFO, "Read data: 0x%02X", read_data);
- *
- * 5. 多字节读写操作
- * uint8_t write_buffer[] = {0x11, 0x22, 0x33, 0x44};
- * EEPROMWriteBytesToReg(0x10, write_buffer, 4);
- * uint8_t read_buffer[4];
- * EEPROMReadBytesFromReg(0x10, read_buffer, 4);
- * Log_Message(LOG_LEVEL_INFO, "Read bytes: 0x%02X, 0x%02X, 0x%02X, 0x%02X",
- *             read_buffer[0], read_buffer[1], read_buffer[2], read_buffer[3]);
- */

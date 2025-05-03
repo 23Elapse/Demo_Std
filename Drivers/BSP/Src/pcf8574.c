@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-05 21:24:07
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 01:20:16
+ * @LastEditTime: 2025-05-03 15:00:00
  * @FilePath: \Demo\Drivers\BSP\Src\pcf8574.c
  * @Description: PCF8574 IIC 扩展 IO 驱动实现
  *
@@ -12,7 +12,9 @@
 #include "iic_core.h"
 #include "log_system.h"
 #include "rtos_abstraction.h"
+#include "common_driver.h"
 #include "pch.h"
+
 /* PCF8574 的 IIC 操作接口 */
 const IIC_Ops_t IIC1_PCF8574 = {
     .dev_addr = PCF8574_ADDR,
@@ -26,18 +28,15 @@ const IIC_Ops_t IIC1_PCF8574 = {
  */
 uint8_t pcf8574_init(void)
 {
-    GPIO_InitTypeDef gpio_init_struct;
-    PCF8574_GPIO_CLK_ENABLE();
+    // 使用 common_driver 初始化 GPIO
+    if (Common_GPIO_Init(PCF8574_GPIO_PORT, PCF8574_GPIO_PIN, GPIO_Mode_IN,
+                         GPIO_OType_PP, GPIO_PuPd_UP, GPIO_Speed_50MHz, 0) != COMMON_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to init GPIO");
+        return 1;
+    }
 
-    gpio_init_struct.GPIO_Pin = PCF8574_GPIO_PIN;
-    gpio_init_struct.GPIO_Mode = GPIO_Mode_IN;
-    gpio_init_struct.GPIO_OType = GPIO_OType_PP;
-    gpio_init_struct.GPIO_PuPd = GPIO_PuPd_UP;
-    gpio_init_struct.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(PCF8574_GPIO_PORT, &gpio_init_struct);
-
-    IIC_INIT();
-
+    // IIC 初始化由 IIC_INIT 统一处理
     if (IIC_Check(&IIC1_config, &IIC1_PCF8574) == IIC_OK)
     {
         Log_Message(LOG_LEVEL_INFO, "[PCF8574] Device check success, addr: 0x%02X", IIC1_PCF8574.dev_addr);

@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 01:04:42
+ * @LastEditTime: 2025-05-03 15:00:00
  * @FilePath: \Demo\Drivers\BSP\Inc\iic_core.h
  * @Description: IIC 核心头文件，支持 RTOS 抽象
  *
@@ -32,6 +32,7 @@
 #define IIC2_SCL_PIN GPIO_Pin_10
 #define IIC2_SDA_GPIO_PORT GPIOB
 #define IIC2_SDA_PIN GPIO_Pin_11
+#define MAX_IIC_DEVICES 4
 
 /* IO 操作 */
 #define IIC_SCL_1(IIC_x)                                    \
@@ -93,7 +94,10 @@ typedef struct
     uint16_t sda_pin;
     uint8_t instance_id;
     void *mutex;
+    IIC_Ops_t *devices[MAX_IIC_DEVICES]; // 支持挂载多个设备
+    uint8_t device_count;                // 当前挂载设备数
 } IIC_Config_t;
+
 /**
  * @brief IIC 操作接口函数指针类型
  */
@@ -109,6 +113,7 @@ typedef struct
     IIC_WriteFunc WriteByte;
     uint8_t dev_addr; // 设备地址（7位）
 } IIC_Ops_t;
+
 /* 全局变量声明 */
 extern IIC_Config_t IIC1_config;
 extern IIC_Ops_t IIC1_ops;
@@ -122,5 +127,9 @@ IIC_Status IIC_ReadByte(uint8_t instance_id, uint8_t ack, uint8_t *data);
 IIC_Status IIC_WriteByte(uint8_t instance_id, uint8_t data);
 IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr);
 void IIC_INIT(void);
+IIC_Status IIC_AttachDevice(IIC_Config_t *IICx, IIC_Ops_t *device);
+uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev);
+IIC_Status IICx_DevWrite(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t len);
+IIC_Status IICx_DevRead(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t len);
 
 #endif /* __IIC_CORE_H */

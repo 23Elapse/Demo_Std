@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 01:06:56
- * @FilePath: \Demo\Drivers\BSP\Src\device_manager.c
+ * @LastEditTime: 2025-05-03 15:00:00
+ * @FilePath: \Demo\Middlewares\Src\device_manager.c
  * @Description: 设备管理器实现
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -16,7 +16,7 @@
  * @brief 初始化设备管理器
  * @param mgr 设备管理器实例
  * @param device_array 设备句柄数组
- * @param max_size 最大设备数量
+ * @param max_size 最大设备数
  */
 void DeviceManager_Init(Device_Manager_t *mgr, Device_Handle_t *device_array, uint8_t max_size)
 {
@@ -34,9 +34,9 @@ void DeviceManager_Init(Device_Manager_t *mgr, Device_Handle_t *device_array, ui
         mgr->devices[i].device = NULL;
         mgr->devices[i].type = DEVICE_TYPE_NONE;
         mgr->devices[i].id = 0;
-        mgr->devices[i].status = DEVICE_STATUS_NOT_INIT;
+        mgr->devices[i].status = DEVICE_STATUS_NOT_INITIALIZED;
     }
-    Log_Message(LOG_LEVEL_INFO, "[DeviceMgr] Initialized with max %d devices", max_size);
+    Log_Message(LOG_LEVEL_INFO, "[DeviceMgr] Initialized with max devices: %d", max_size);
 }
 
 /**
@@ -45,13 +45,13 @@ void DeviceManager_Init(Device_Manager_t *mgr, Device_Handle_t *device_array, ui
  * @param device 设备实例
  * @param type 设备类型
  * @param id 设备 ID
- * @return Device_Handle_t* 设备句柄
+ * @return Device_Handle_t* 设备句柄，失败返回 NULL
  */
 Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, void *device, Device_Type_t type, uint8_t id)
 {
     if (!mgr || !device || mgr->count >= mgr->max_devices)
     {
-        Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Invalid parameters or no space");
+        Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Invalid device or max devices reached");
         return NULL;
     }
 
@@ -62,13 +62,13 @@ Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, void *device, Dev
             mgr->devices[i].device = device;
             mgr->devices[i].type = type;
             mgr->devices[i].id = id;
-            mgr->devices[i].status = DEVICE_STATUS_INIT;
+            mgr->devices[i].status = DEVICE_STATUS_NOT_INITIALIZED;
             mgr->count++;
             Log_Message(LOG_LEVEL_INFO, "[DeviceMgr] Registered device type %d, ID %d", type, id);
             return &mgr->devices[i];
         }
     }
-    Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] No free slot for device");
+    Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] No free slots available");
     return NULL;
 }
 
@@ -77,7 +77,7 @@ Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, void *device, Dev
  * @param mgr 设备管理器实例
  * @param type 设备类型
  * @param id 设备 ID
- * @return Device_Handle_t* 设备句柄
+ * @return Device_Handle_t* 设备句柄，未找到返回 NULL
  */
 Device_Handle_t *DeviceManager_Find(Device_Manager_t *mgr, Device_Type_t type, uint8_t id)
 {
@@ -117,12 +117,12 @@ void DeviceManager_Unregister(Device_Manager_t *mgr, Device_Handle_t *handle)
     {
         if (&mgr->devices[i] == handle)
         {
-            Log_Message(LOG_LEVEL_INFO, "[DeviceMgr] Unregistering device type %d, ID %d",
+            Log_Message(LOG_LEVEL_INFO, "[DeviceMgr] Unregistered device type %d, ID %d",
                         mgr->devices[i].type, mgr->devices[i].id);
             mgr->devices[i].device = NULL;
             mgr->devices[i].type = DEVICE_TYPE_NONE;
             mgr->devices[i].id = 0;
-            mgr->devices[i].status = DEVICE_STATUS_NOT_INIT;
+            mgr->devices[i].status = DEVICE_STATUS_NOT_INITIALIZED;
             mgr->count--;
             break;
         }
@@ -131,35 +131,85 @@ void DeviceManager_Unregister(Device_Manager_t *mgr, Device_Handle_t *handle)
 
 /**
  * @brief 检查设备状态
- * @param mgr 设备管理器实例
  * @param handle 设备句柄
  * @return Device_Status_t 设备状态
  */
-Device_Status_t DeviceManager_CheckStatus(Device_Manager_t *mgr, Device_Handle_t *handle)
+Device_Status_t DeviceManager_CheckStatus(Device_Handle_t *handle)
 {
-    if (!mgr || !handle)
+    if (!handle || !handle->device)
     {
-        Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Invalid parameters");
-        return DEVICE_STATUS_NOT_INIT;
+        Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Invalid handle");
+        return DEVICE_STATUS_ERROR;
     }
 
-    for (uint8_t i = 0; i < mgr->max_devices; i++)
+    switch (handle->type)
     {
-        if (&mgr->devices[i] == handle)
+    case DEVICE_TYPE_SERIAL:
+        if (((Serial_Device_t *)handle->device)->instance != NULL)
         {
-            return mgr->devices[i].status;
+            handle->status = DEVICE_STATUS_OK;
         }
+        else
+        {
+            handle->status = DEVICE_STATUS_NOT_INITIALIZED;
+        }
+        break;
+    case DEVICE_TYPE_EEPROM:
+        if (((IIC_Ops_t *)handle->device)->dev_addr == EEPROM_ADDR)
+        {
+            handle->status = DEVICE_STATUS_OK;
+        }
+        else
+        {
+            handle->status = DEVICE_STATUS_NOT_INITIALIZED;
+        }
+        break;
+    case DEVICE_TYPE_PCF8574:
+        if (((IIC_Ops_t *)handle->device)->dev_addr == PCF8574_ADDR)
+        {
+            handle->status = DEVICE_STATUS_OK;
+        }
+        else
+        {
+            handle->status = DEVICE_STATUS_NOT_INITIALIZED;
+        }
+        break;
+    case DEVICE_TYPE_CAN:
+        if (((CAN_Device_t *)handle->device)->instance != NULL)
+        {
+            handle->status = DEVICE_STATUS_OK;
+        }
+        else
+        {
+            handle->status = DEVICE_STATUS_NOT_INITIALIZED;
+        }
+        break;
+    case DEVICE_TYPE_WIFI:
+        if (((Serial_Device_t *)handle->device)->instance != NULL)
+        {
+            handle->status = DEVICE_STATUS_OK;
+        }
+        else
+        {
+            handle->status = DEVICE_STATUS_NOT_INITIALIZED;
+        }
+        break;
+    default:
+        handle->status = DEVICE_STATUS_NOT_INITIALIZED;
+        break;
     }
-    Log_Message(LOG_LEVEL_WARNING, "[DeviceMgr] Device handle not found");
-    return DEVICE_STATUS_NOT_INIT;
+
+    Log_Message(LOG_LEVEL_INFO, "[DeviceMgr] Device type %d, ID %d, status: %d",
+                handle->type, handle->id, handle->status);
+    return handle->status;
 }
 
 /*
  * 示例用法：
  * 1. 初始化设备管理器
  * Device_Manager_t mgr;
- * Device_Handle_t devices[10];
- * DeviceManager_Init(&mgr, devices, 10);
+ * Device_Handle_t devices[MAX_DEVICES];
+ * DeviceManager_Init(&mgr, devices, MAX_DEVICES);
  *
  * 2. 注册设备
  * Serial_Device_t serial_dev = {...};
@@ -169,5 +219,5 @@ Device_Status_t DeviceManager_CheckStatus(Device_Manager_t *mgr, Device_Handle_t
  * Device_Handle_t *handle = DeviceManager_Find(&mgr, DEVICE_TYPE_SERIAL, 1);
  *
  * 4. 检查设备状态
- * Device_Status_t status = DeviceManager_CheckStatus(&mgr, handle);
+ * Device_Status_t status = DeviceManager_CheckStatus(handle);
  */

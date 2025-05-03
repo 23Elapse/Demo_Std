@@ -2,15 +2,16 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 01:20:41
+ * @LastEditTime: 2025-05-03 14:14:15
  * @FilePath: \Demo\Drivers\BSP\Src\iic_driver.c
  * @Description: IIC 驱动实现，支持 RTOS 抽象
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
  */
-
 #include "iic_core.h"
+#include "common_driver.h"
 #include "pch.h"
+
 /**
  * @brief IIC1 设备配置
  */
@@ -20,7 +21,8 @@ IIC_Config_t IIC1_config = {
     .scl_pin = IIC1_SCL_PIN,
     .sda_port = IIC1_SDA_GPIO_PORT,
     .sda_pin = IIC1_SDA_PIN,
-    .mutex = NULL};
+    .mutex = NULL,
+    .device_count = 0};
 
 /**
  * @brief 微秒级忙等待延时
@@ -28,7 +30,6 @@ IIC_Config_t IIC1_config = {
  */
 static void delay_us(uint32_t us)
 {
-    // 假设系统时钟为 168MHz（STM32F4），每循环约 6ns
     uint32_t cycles = us * 168 / 6;
     while (cycles--)
         __NOP();
@@ -40,13 +41,8 @@ static void delay_us(uint32_t us)
  */
 static void _scl_config(IIC_Config_t *IICx)
 {
-    GPIO_InitTypeDef gpio = {
-        .GPIO_Pin = IICx->scl_pin,
-        .GPIO_Mode = GPIO_Mode_OUT,
-        .GPIO_OType = GPIO_OType_OD,
-        .GPIO_Speed = GPIO_Speed_50MHz,
-        .GPIO_PuPd = GPIO_PuPd_NOPULL};
-    GPIO_Init(IICx->scl_port, &gpio);
+    Common_GPIO_Init(IICx->scl_port, IICx->scl_pin, GPIO_Mode_OUT,
+                     GPIO_OType_OD, GPIO_PuPd_NOPULL, GPIO_Speed_50MHz, 0);
 }
 
 /**
@@ -55,20 +51,14 @@ static void _scl_config(IIC_Config_t *IICx)
  */
 static void _sda_config(IIC_Config_t *IICx)
 {
-    GPIO_InitTypeDef gpio = {
-        .GPIO_Pin = IICx->sda_pin,
-        .GPIO_Mode = GPIO_Mode_OUT,
-        .GPIO_OType = GPIO_OType_OD,
-        .GPIO_Speed = GPIO_Speed_50MHz,
-        .GPIO_PuPd = GPIO_PuPd_NOPULL};
-    GPIO_Init(IICx->sda_port, &gpio);
+    Common_GPIO_Init(IICx->sda_port, IICx->sda_pin, GPIO_Mode_OUT,
+                     GPIO_OType_OD, GPIO_PuPd_NOPULL, GPIO_Speed_50MHz, 0);
 }
 
 /**
  * @brief 初始化 IIC 设备
  * @param IICx IIC 设备实例指针
  * @return IIC 操作状态
- * @note 需在系统时钟初始化后调用，配置 GPIO 为开漏模式
  */
 IIC_Status IICx_Init(IIC_Config_t *IICx)
 {
@@ -79,7 +69,6 @@ IIC_Status IICx_Init(IIC_Config_t *IICx)
         return IIC_ERR_INIT;
     }
 
-    // 创建互斥锁
     if (IICx->mutex == NULL)
     {
         IICx->mutex = rtos_ops->SemaphoreCreate();
@@ -93,7 +82,7 @@ IIC_Status IICx_Init(IIC_Config_t *IICx)
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOH, ENABLE);
     _scl_config(IICx);
     _sda_config(IICx);
-    IIC_SCL_1(IICx->instance_id); // 初始拉高
+    IIC_SCL_1(IICx->instance_id);
     IIC_SDA_1(IICx->instance_id);
 
     printf("[IIC%d] Initialized successfully\n", IICx->instance_id);
@@ -120,24 +109,19 @@ IIC_Status IIC_ResetBus(IIC_Config_t *IICx)
         return IIC_ERR_TIMEOUT;
     }
 
-    GPIO_InitTypeDef GPIO_InitStruct = {
-        .GPIO_Pin = IICx->scl_pin,
-        .GPIO_Mode = GPIO_Mode_OUT,
-        .GPIO_OType = GPIO_OType_PP,
-        .GPIO_Speed = GPIO_Speed_50MHz,
-        .GPIO_PuPd = GPIO_PuPd_NOPULL};
-    GPIO_Init(IICx->scl_port, &GPIO_InitStruct);
+    Common_GPIO_Init(IICx->scl_port, IICx->scl_pin, GPIO_Mode_OUT,
+                     GPIO_OType_PP, GPIO_PuPd_NOPULL, GPIO_Speed_50MHz, 0);
 
     for (uint8_t i = 0; i < 9; i++)
     {
         IIC_SCL_1(IICx->instance_id);
-        delay_us(5); // 延时 5us
+        delay_us(5);
         IIC_SCL_0(IICx->instance_id);
         delay_us(5);
     }
 
-    GPIO_InitStruct.GPIO_OType = GPIO_OType_OD;
-    GPIO_Init(IICx->scl_port, &GPIO_InitStruct);
+    Common_GPIO_Init(IICx->scl_port, IICx->scl_pin, GPIO_Mode_OUT,
+                     GPIO_OType_OD, GPIO_PuPd_NOPULL, GPIO_Speed_50MHz, 0);
 
     rtos_ops->SemaphoreGive(IICx->mutex);
     return IIC_OK;
@@ -152,7 +136,7 @@ IIC_Status IIC_Start(uint8_t instance_id)
 {
     IIC_SDA_1(instance_id);
     IIC_SCL_1(instance_id);
-    delay_us(5); // 延时 5us
+    delay_us(5);
     IIC_SDA_0(instance_id);
     delay_us(5);
     IIC_SCL_0(instance_id);
@@ -195,7 +179,7 @@ IIC_Status IIC_ReadByte(uint8_t instance_id, uint8_t ack, uint8_t *data)
     }
 
     *data = 0;
-    IIC_SDA_1(instance_id); // 释放 SDA
+    IIC_SDA_1(instance_id);
     for (uint8_t i = 0; i < 8; i++)
     {
         IIC_SCL_1(instance_id);
@@ -211,11 +195,11 @@ IIC_Status IIC_ReadByte(uint8_t instance_id, uint8_t ack, uint8_t *data)
 
     if (!ack)
     {
-        IIC_SDA_0(instance_id); // 发送 ACK
+        IIC_SDA_0(instance_id);
     }
     else
     {
-        IIC_SDA_1(instance_id); // 发送 NACK
+        IIC_SDA_1(instance_id);
     }
     delay_us(5);
     IIC_SCL_1(instance_id);
@@ -250,10 +234,10 @@ IIC_Status IIC_WriteByte(uint8_t instance_id, uint8_t data)
         delay_us(5);
     }
 
-    IIC_SDA_1(instance_id); // 释放 SDA 线
+    IIC_SDA_1(instance_id);
     delay_us(5);
     IIC_SCL_1(instance_id);
-    uint8_t ack = IIC_SDA_READ(instance_id); // 读取 ACK
+    uint8_t ack = IIC_SDA_READ(instance_id);
     delay_us(5);
     IIC_SCL_0(instance_id);
 
@@ -275,7 +259,7 @@ IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr)
         return IIC_ERR_INIT;
     }
 
-    rtos_ops->Delay(3); /* 初始延时 3ms，覆盖大多数设备写入时间 */
+    rtos_ops->Delay(3);
     uint16_t timeout = I2C_TIMEOUT;
     while (timeout--)
     {
@@ -286,7 +270,7 @@ IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr)
             return IIC_OK;
         }
         IIC_Stop(instance_id);
-        rtos_ops->Delay(1); /* 每次轮询间隔 1ms */
+        rtos_ops->Delay(1);
     }
 
     printf("[IIC%d] Write timeout\n", instance_id);
@@ -302,7 +286,31 @@ void IIC_INIT(void)
     if (status != IIC_OK)
     {
         printf("[IIC] Initialization failed: %d\n", status);
+        return;
     }
+
+    // 挂载 IIC 设备
+    IIC_AttachDevice(&IIC1_config, (IIC_Ops_t *)&IIC1_EEPROM);
+    IIC_AttachDevice(&IIC1_config, (IIC_Ops_t *)&IIC1_PCF8574);
+}
+
+/**
+ * @brief 挂载 IIC 设备
+ * @param IICx IIC 设备实例指针
+ * @param device IIC 设备操作接口
+ * @return IIC 操作状态
+ */
+IIC_Status IIC_AttachDevice(IIC_Config_t *IICx, IIC_Ops_t *device)
+{
+    if (!IICx || !device || IICx->device_count >= MAX_IIC_DEVICES)
+    {
+        printf("[IIC%d] Invalid config or max devices reached\n", IICx->instance_id);
+        return IIC_ERR_INIT;
+    }
+
+    IICx->devices[IICx->device_count++] = device;
+    printf("[IIC%d] Attached device with addr 0x%02X\n", IICx->instance_id, device->dev_addr);
+    return IIC_OK;
 }
 
 /**
@@ -435,22 +443,3 @@ IIC_Status IICx_DevRead(IIC_Ops_t *i2c_dev, uint8_t reg, uint8_t *buf, uint16_t 
 
     return IIC_OK;
 }
-
-/*
- * 示例用法：
- * 1. 设置 RTOS 抽象层
- * RTOS_SetOps(&FreeRTOS_Ops); // 或 RTThread_Ops
- *
- * 2. 初始化 IIC 设备
- * IIC_INIT();
- *
- * 3. 检测设备
- * if (IIC_Check(&IIC1_config, &IIC1_EEPROM) == 0) {
- *     printf("EEPROM detected!\n");
- * }
- *
- * 4. 读写操作
- * uint8_t data = 0;
- * IIC1_EEPROM.WriteByte(0x00, 0xAA);
- * IIC1_EEPROM.ReadByte(0x00, &data);
- */

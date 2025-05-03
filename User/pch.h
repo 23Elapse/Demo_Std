@@ -84,7 +84,7 @@
 #include "common_driver.h"
 #include "api_eeprom.h"
 #include "rtos_abstraction.h"
-
+#include "can_driver.h"
 
 
 

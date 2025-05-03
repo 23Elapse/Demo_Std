@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 01:22:17
+ * @LastEditTime: 2025-05-03 15:41:43
  * @FilePath: \Demo\Drivers\BSP\Inc\device_manager.h
  * @Description: 设备管理器头文件
  *
@@ -32,8 +32,7 @@ typedef enum
 typedef enum
 {
     DEVICE_STATUS_OK = 0,
-    DEVICE_STATUS_INIT,
-    DEVICE_STATUS_NOT_INIT,
+    DEVICE_STATUS_NOT_INITIALIZED,
     DEVICE_STATUS_ERROR
 } Device_Status_t;
 
