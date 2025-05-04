@@ -2,9 +2,9 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-19 00:03:34
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-02 21:36:47
+ * @LastEditTime: 2025-05-03 16:13:22
  * @FilePath: \Demo\Drivers\BSP\Inc\spi_flash.h
- * @Description: SPI Flash 驱动头文件，支持 RTOS 抽象
+ * @Description: SPI Flash 驱动头文件，支持 RTOS 抽象和优化
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
  */
@@ -31,7 +31,9 @@ typedef enum
     FLASH_WRITE_PROTECTED,
     FLASH_BUSYING,
     FLASH_INVALID_PARAM,
-    FLASH_UNSUPPORTED_CHIP
+    FLASH_UNSUPPORTED_CHIP,
+    FLASH_SPI_HW_ERROR,
+    FLASH_DMA_ERROR
 } Flash_Status;
 
 #define STATUS_REG_BUSY (0x01U)
@@ -75,6 +77,7 @@ typedef enum
     W25Q64 = 0xEF16,
     W25Q128 = 0xEF17,
     W25Q256 = 0xEF18,
+    W25Q512 = 0xEF19,
     BY25Q64 = 0x6816,
     BY25Q128 = 0x6817,
     BY25Q256 = 0x6818,
@@ -95,18 +98,31 @@ typedef enum
     FLASH_4BYTE_MODE
 } Flash_AddressMode;
 
+/**
+ * @brief SPI 硬件操作回调接口
+ */
 typedef struct
 {
-    SPI_TypeDef *SPIx;
-    GPIO_TypeDef *GPIO_Port;
-    uint32_t SPI_Clk;
-    uint32_t GPIO_Clk;
-    uint16_t CS_Pin;
-    uint16_t SCK_Pin;
-    uint16_t MISO_Pin;
-    uint16_t MOSI_Pin;
-    Flash_AddressMode address_mode;
-    void *mutex;
+    uint8_t (*transfer)(void *hw_context, uint8_t data);                                            // SPI 单字节传输
+    void (*cs_low)(void *hw_context);                                                               // 片选拉低
+    void (*cs_high)(void *hw_context);                                                              // 片选拉高
+    Flash_Status (*dma_transfer)(void *hw_context, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t len); // DMA 传输
+} SPI_Hw_Ops_t;
+
+typedef struct
+{
+    SPI_TypeDef *SPIx;              // SPI 外设实例
+    GPIO_TypeDef *GPIO_Port;        // GPIO 端口
+    uint32_t SPI_Clk;               // SPI 时钟
+    uint32_t GPIO_Clk;              // GPIO 时钟
+    uint16_t CS_Pin;                // 片选引脚
+    uint16_t SCK_Pin;               // 时钟引脚
+    uint16_t MISO_Pin;              // MISO 引脚
+    uint16_t MOSI_Pin;              // MOSI 引脚
+    Flash_AddressMode address_mode; // 地址模式
+    void *mutex;                    // 互斥锁
+    SPI_Hw_Ops_t *hw_ops;           // 硬件操作回调
+    void *hw_context;               // 硬件上下文（传递给回调）
 } SPI_Flash_Config;
 
 extern const uint8_t g_flash_write_reg_cmd[];
@@ -186,6 +202,16 @@ Flash_Status SPI_Flash_WritePage(SPI_Flash_Config *config, uint8_t *pBuffer, uin
  * @return Flash_Status 操作状态
  */
 Flash_Status SPI_Flash_ReadData(SPI_Flash_Config *config, uint8_t *pBuffer, uint32_t readAddr, uint16_t numByteToRead);
+
+/**
+ * @brief 快速读取 Flash 数据
+ * @param config Flash 配置结构体指针
+ * @param pBuffer 数据缓冲区
+ * @param readAddr 读取地址
+ * @param numByteToRead 读取字节数
+ * @return Flash_Status 操作状态
+ */
+Flash_Status SPI_Flash_FastReadData(SPI_Flash_Config *config, uint8_t *pBuffer, uint32_t readAddr, uint16_t numByteToRead);
 
 /**
  * @brief 读取 Flash 设备 ID

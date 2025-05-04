@@ -44,11 +44,11 @@ static int HandleState_Init(StateContext_t *ctx, uint8_t byte, void *user_data)
 
 static int HandleState_Start(StateContext_t *ctx, uint8_t byte, void *user_data)
 {
-    Protocol_Data_t *data = (Protocol_Data_t *)user_data;
-    static uint8_t temp_buffer[208];
-    static uint8_t info_buffer[200];
+//    Protocol_Data_t *data = (Protocol_Data_t *)user_data;
+//    static uint8_t temp_buffer[208];
+//    static uint8_t info_buffer[200];
 
-    temp_buffer[ctx->index++] = byte;
+//    temp_buffer[ctx->index++] = byte;
     if (ctx->index == 5)
     {
         ctx->expected_length = byte;
@@ -66,11 +66,11 @@ static int HandleState_Start(StateContext_t *ctx, uint8_t byte, void *user_data)
 
 static int HandleState_Data(StateContext_t *ctx, uint8_t byte, void *user_data)
 {
-    Protocol_Data_t *data = (Protocol_Data_t *)user_data;
-    static uint8_t temp_buffer[208];
-    static uint8_t info_buffer[200];
+//    Protocol_Data_t *data = (Protocol_Data_t *)user_data;
+//    static uint8_t temp_buffer[208];
+//    static uint8_t info_buffer[200];
 
-    temp_buffer[ctx->index++] = byte;
+//    temp_buffer[ctx->index++] = byte;
     if (ctx->index >= ctx->expected_length - 2)
     {
         ctx->current_state = STATE_END;

@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 15:41:43
+ * @LastEditTime: 2025-05-04 15:09:25
  * @FilePath: \Demo\Drivers\BSP\Inc\device_manager.h
  * @Description: 设备管理器头文件
  *
@@ -12,6 +12,8 @@
 #define __DEVICE_MANAGER_H
 
 #include <stdint.h>
+#include "api_wifi.h"
+#include "rtos_abstraction.h"
 
 /**
  * @brief 设备类型枚举
@@ -23,7 +25,8 @@ typedef enum
     DEVICE_TYPE_EEPROM,
     DEVICE_TYPE_PCF8574,
     DEVICE_TYPE_CAN,
-    DEVICE_TYPE_WIFI
+    DEVICE_TYPE_WIFI,
+    DEVICE_TYPE_SPI_FLASH
 } Device_Type_t;
 
 /**
@@ -41,7 +44,7 @@ typedef enum
  */
 typedef struct
 {
-    void *device;           // 设备实例指针
+    void *device;           // 设备实例指针（如 Serial_Device_t 或 WiFi_Device_t）
     Device_Type_t type;     // 设备类型
     uint8_t id;             // 设备 ID
     Device_Status_t status; // 设备状态
@@ -52,9 +55,10 @@ typedef struct
  */
 typedef struct
 {
-    Device_Handle_t *devices; // 设备数组
+    Device_Handle_t *devices; // 设备句柄数组
     uint8_t max_devices;      // 最大设备数
     uint8_t count;            // 当前设备数
+    void *mutex;              // RTOS 互斥锁
 } Device_Manager_t;
 
 /**
@@ -99,3 +103,4 @@ void DeviceManager_Unregister(Device_Manager_t *mgr, Device_Handle_t *handle);
 Device_Status_t DeviceManager_CheckStatus(Device_Handle_t *handle);
 
 #endif /* __DEVICE_MANAGER_H */
+

@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-18 20:46:08
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 15:00:00
+ * @LastEditTime: 2025-05-05 00:59:33
  * @FilePath: \Demo\Middlewares\Src\api_eeprom.c
  * @Description: EEPROM 驱动实现
  *
@@ -79,7 +79,7 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     status = IIC_WriteByte(instance_id, reg & 0xFF);
     if (status != IIC_OK)
     {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d", status);
+        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
         IIC_Stop(instance_id);
         rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
@@ -180,7 +180,7 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
     status = IIC_WriteByte(instance_id, reg & 0xFF);
     if (status != IIC_OK)
     {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d", status);
+        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
         IIC_Stop(instance_id);
         rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
@@ -272,7 +272,7 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
     status = IIC_WriteByte(instance_id, reg & 0xFF);
     if (status != IIC_OK)
     {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d", status);
+        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d ,line is %d", status, __LINE__);
         IIC_Stop(instance_id);
         rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
@@ -385,7 +385,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
         status = IIC_WriteByte(instance_id, reg & 0xFF);
         if (status != IIC_OK)
         {
-            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d", status);
+            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
             IIC_Stop(instance_id);
             rtos_ops->SemaphoreGive(IIC1_config.mutex);
             return status;

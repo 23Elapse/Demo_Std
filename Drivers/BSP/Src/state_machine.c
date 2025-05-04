@@ -1,5 +1,5 @@
 #include "state_machine.h"
-
+#include "pch.h"
 void StateMachine_Init(StateContext_t *ctx, void *user_data)
 {
     ctx->current_state = STATE_INIT;

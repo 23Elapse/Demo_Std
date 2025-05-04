@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 14:14:15
+ * @LastEditTime: 2025-05-05 00:54:59
  * @FilePath: \Demo\Drivers\BSP\Src\iic_driver.c
  * @Description: IIC 驱动实现，支持 RTOS 抽象
  *
@@ -85,7 +85,7 @@ IIC_Status IICx_Init(IIC_Config_t *IICx)
     IIC_SCL_1(IICx->instance_id);
     IIC_SDA_1(IICx->instance_id);
 
-    printf("[IIC%d] Initialized successfully\n", IICx->instance_id);
+//    printf("[IIC%d] Initialized successfully\n", IICx->instance_id);
     return IIC_OK;
 }
 
@@ -328,11 +328,11 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         return 1;
     }
 
-    if (!rtos_ops->SemaphoreTake(IICx->mutex, 100))
-    {
-        printf("[IIC%d] Failed to take mutex, timeout after 100ms\n", IICx->instance_id);
-        return 1;
-    }
+//    if (!rtos_ops->SemaphoreTake(IICx->mutex, 100))
+//    {
+//        printf("[IIC%d] Failed to take mutex, timeout after 100ms\n", IICx->instance_id);
+//        return 1;
+//    }
 
     if (EEPROM_ADDR == i2c_dev->dev_addr)
     {
@@ -345,14 +345,14 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
             return 1;
         }
 
-        if (temp == 0x55)
+        if (temp == 0x66)
         {
             printf("[IIC%d] EEPROM already initialized (addr 0x%02X)\n", IICx->instance_id, i2c_dev->dev_addr);
             rtos_ops->SemaphoreGive(IICx->mutex);
             return 0;
         }
 
-        status = i2c_dev->WriteByte(EEPROM_TYPE, 0x55);
+        status = i2c_dev->WriteByte(EEPROM_TYPE, 0x66);
         if (status != IIC_OK)
         {
             printf("[IIC%d] Failed to write EEPROM (addr 0x%02X): %d\n", IICx->instance_id, i2c_dev->dev_addr, status);

@@ -66,4 +66,5 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
  */
 IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t length);
 
-#endif /* __API_EEPROM_H */
+#endif
+

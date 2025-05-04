@@ -82,22 +82,6 @@ typedef enum
     IIC_ERR_BUS_BUSY,
     IIC_ERR_READ
 } IIC_Status;
-
-/**
- * @brief IIC 配置结构体
- */
-typedef struct
-{
-    GPIO_TypeDef *scl_port;
-    GPIO_TypeDef *sda_port;
-    uint16_t scl_pin;
-    uint16_t sda_pin;
-    uint8_t instance_id;
-    void *mutex;
-    IIC_Ops_t *devices[MAX_IIC_DEVICES]; // 支持挂载多个设备
-    uint8_t device_count;                // 当前挂载设备数
-} IIC_Config_t;
-
 /**
  * @brief IIC 操作接口函数指针类型
  */
@@ -113,6 +97,20 @@ typedef struct
     IIC_WriteFunc WriteByte;
     uint8_t dev_addr; // 设备地址（7位）
 } IIC_Ops_t;
+/**
+ * @brief IIC 配置结构体
+ */
+typedef struct
+{
+    GPIO_TypeDef *scl_port;
+    GPIO_TypeDef *sda_port;
+    uint16_t scl_pin;
+    uint16_t sda_pin;
+    uint8_t instance_id;
+    void *mutex;
+    IIC_Ops_t *devices[MAX_IIC_DEVICES]; // 支持挂载多个设备
+    uint8_t device_count;                // 当前挂载设备数
+} IIC_Config_t;
 
 /* 全局变量声明 */
 extern IIC_Config_t IIC1_config;

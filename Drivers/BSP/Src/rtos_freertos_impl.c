@@ -142,17 +142,153 @@ static void *FreeRTOS_Malloc(size_t size)
     return pvPortMalloc(size);
 }
 
-/**
+/** 
  * @brief  释放动态内存
  * @param  ptr: 要释放的内存指针
  */
 static void FreeRTOS_Free(void *ptr)
 {
-    if (ptr)
+   if (ptr)
+   {
+       vPortFree(ptr);
+   }
+}
+
+/**
+ * @brief  开始任务调度
+ * @note   该函数会启动调度器，开始任务调度
+ * @note   该函数会调用 vTaskStartScheduler() 函数
+ * @param  无参数
+ * @retval 无返回值 
+ */
+static void FreeRTOS_TaskStartScheduler(void)
+{
+    vTaskStartScheduler();
+}
+
+/**
+ * @brief  创建互斥信号量
+ * @retval 互斥信号量句柄，失败返回 NULL
+ */
+static void *FreeRTOS_QueueCreateMutex(void)
+{
+    return xSemaphoreCreateMutex();
+}
+/**
+ * @brief  接收队列
+ * @param  queue: 队列句柄
+ * @param  item: 接收的项
+ * @param  timeout: 超时时间（ticks）
+ * @retval 1: 成功, 0: 失败
+ */
+static uint8_t FreeRTOS_ReceiveQueue(void *queue, void *item, uint32_t timeout)
+{
+    if (!queue)
+        return 0;
+    return xQueueReceive(queue, item, timeout) == pdTRUE ? 1 : 0;
+}
+
+/**
+ * @brief  发送队列
+ * @param  queue: 队列句柄
+ * @param  item: 要发送的项
+ * @param  timeout: 超时时间（ticks）
+ * @retval 1: 成功, 0: 失败
+ */
+static uint8_t FreeRTOS_SendQueue(void *queue, const void *item, uint32_t timeout)
+{
+    if (!queue)
+        return 0;
+    return xQueueSend(queue, item, timeout) == pdTRUE ? 1 : 0;
+}
+
+/**
+ * @brief  中断中发送队列
+ * @param  queue: 队列句柄
+ * @param  item: 要发送的项
+ * @param  xHigherPriorityTaskWoken: 任务切换标志
+ * @retval 1: 成功, 0: 失败
+ */
+static uint8_t FreeRTOS_SendQueueFromISR(void *queue, const void *item, void *xHigherPriorityTaskWoken)
+{
+    if (!queue)
+        return 0;
+    BaseType_t woken = pdFALSE;
+    int ret = xQueueSendFromISR(queue, item, &woken);
+    if (xHigherPriorityTaskWoken)
     {
-        vPortFree(ptr);
+        *(BaseType_t *)xHigherPriorityTaskWoken = woken;
+    }
+    return ret == pdTRUE ? 1 : 0;
+}
+/**
+ * @brief  中断中接收队列
+ * @param  queue: 队列句柄
+ * @param  item: 接收的项
+ * @param  xHigherPriorityTaskWoken: 任务切换标志
+ * @retval 1: 成功, 0: 失败
+ */
+static uint8_t FreeRTOS_ReceiveQueueFromISR(void *queue, void *item, void *xHigherPriorityTaskWoken)
+{
+    if (!queue)
+        return 0;
+    BaseType_t woken = pdFALSE;
+    int ret = xQueueReceiveFromISR(queue, item, &woken);
+    if (xHigherPriorityTaskWoken)
+    {
+        *(BaseType_t *)xHigherPriorityTaskWoken = woken;
+    }
+    return ret == pdTRUE ? 1 : 0;
+}
+/**
+ * @brief  释放队列
+ * @param  queue: 队列句柄
+ */
+static void FreeRTOS_QueueGive(void *queue)
+{
+    if (queue)
+    {
+        // xQueueGive(queue);
     }
 }
+/**
+ * @brief  获取队列
+ * @param  queue: 队列句柄
+ * @param  timeout: 超时时间（ticks）
+ * @retval 1: 成功, 0: 失败
+ */
+static uint8_t FreeRTOS_QueueTake(void *queue, uint32_t timeout)
+{
+    if (!queue)
+        return 0;
+    return xQueueSemaphoreTake(queue, timeout) == pdTRUE ? 1 : 0;
+}
+/**
+ * @brief  创建队列
+ * @param  queue_size: 队列大小
+ * @param  item_size: 每个队列项的大小
+ * @retval 队列句柄，失败返回 NULL
+ */
+static void *FreeRTOS_CreateQueue(size_t item_size, size_t queue_length)
+{
+    return xQueueCreate(queue_length, item_size);
+}
+/**
+ * @brief  删除队列
+ * @param  queue: 队列句柄
+ */
+static void FreeRTOS_DeleteQueue(void *queue)
+{
+    if (queue)
+    {
+        vQueueDelete(queue);
+    }
+}
+
+
+
+
+
 
 /**
  * @brief  FreeRTOS 的 RTOS_Ops_t 实现
@@ -169,7 +305,18 @@ const RTOS_Ops_t FreeRTOS_Ops = {
     .TaskCreate = FreeRTOS_TaskCreate,
     .TaskDelete = FreeRTOS_TaskDelete,
     .Malloc = FreeRTOS_Malloc,
-    .Free = FreeRTOS_Free};
+    .Free = FreeRTOS_Free,
+    .TaskStartScheduler = FreeRTOS_TaskStartScheduler,
+    .CreateQueue = FreeRTOS_CreateQueue,
+    .DeleteQueue = FreeRTOS_DeleteQueue, 
+    .ReceiveQueue = FreeRTOS_ReceiveQueue, 
+    .SendQueue = FreeRTOS_SendQueue,
+    .SendQueueFromISR = FreeRTOS_SendQueueFromISR,
+    .ReceiveQueueFromISR = FreeRTOS_ReceiveQueueFromISR,
+    .QueueGive = FreeRTOS_QueueGive,
+    .QueueTake = FreeRTOS_QueueTake,
+    .CreateQueueMutex = FreeRTOS_QueueCreateMutex,
+};
 /*
  * 示例用法：
  * 1. 初始化 RTOS 抽象层

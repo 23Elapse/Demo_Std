@@ -1,9 +1,9 @@
 /*
- * @Author: 23Elapse userszy@163.com
+ * @Author: 23Elapse userszy@163.comTriplett
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 15:00:00
- * @FilePath: \Demo\Application\Src\app_tasks.c
+ * @LastEditTime: 2025-05-05 00:52:10
+ * @FilePath: \Demo\Drivers\BSP\Src\app_tasks.c
  * @Description: 应用任务实现
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -18,6 +18,8 @@
 #include "serial_driver.h"
 #include "serial_interface.h"
 #include "pcf8574.h"
+#include "spi_flash.h"
+#include "spi_flash_driver.h"
 #include "stm32f4xx.h"
 #include "pch.h"
 
@@ -78,6 +80,13 @@ CAN_Device_t CAN1_Device = {
     .irqn = CAN1_RX0_IRQn,
     .rx_buffer = {0}};
 
+SPI_Flash_Device_t SPIFlash_Device = {
+    .config = &flash_config,
+    .id = 0};
+
+// WiFi 设备实例
+WiFi_Device_t WiFi_Device = {0};
+
 // IIC 设备通过 IIC_AttachDevice 挂载，无需在此定义 IIC_Ops_t 实例
 
 // 设备管理器实例
@@ -110,6 +119,7 @@ void CAN1_RX0_IRQHandler(void)
  */
 void App_Init(void)
 {
+    RTOS_SetOps(&FreeRTOS_Ops);
     const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
     if (!rtos_ops)
     {
@@ -117,8 +127,8 @@ void App_Init(void)
         return;
     }
 
-    RTOS_SetOps(&FreeRTOS_Ops);
-
+//    RTOS_SetOps(&FreeRTOS_Ops);
+    Serial_Operations.Init(&RS485_Device);
     // 初始化设备管理器
     DeviceManager_Init(&device_mgr, device_array, MAX_DEVICES);
 
@@ -129,6 +139,8 @@ void App_Init(void)
     DeviceManager_Register(&device_mgr, &CAN1_Device, DEVICE_TYPE_CAN, 1);
     DeviceManager_Register(&device_mgr, &IIC1_EEPROM, DEVICE_TYPE_EEPROM, 1);
     DeviceManager_Register(&device_mgr, &IIC1_PCF8574, DEVICE_TYPE_PCF8574, 1);
+    DeviceManager_Register(&device_mgr, &SPIFlash_Device, DEVICE_TYPE_SPI_FLASH, 1);
+    DeviceManager_Register(&device_mgr, &WiFi_Device, DEVICE_TYPE_WIFI, 1);
 
     // 初始化 IIC 设备（PCF8574 和 EEPROM）
     IIC_INIT();
@@ -136,10 +148,12 @@ void App_Init(void)
     // 初始化串口设备
     Device_Handle_t *rs485_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 1);
     Device_Handle_t *uart_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 2);
-    Device_Handle_t *wifi_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 3);
+    Device_Handle_t *wifi_serial_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 3);
     Device_Handle_t *can_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_CAN, 1);
     Device_Handle_t *eeprom_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_EEPROM, 1);
     Device_Handle_t *pcf8574_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_PCF8574, 1);
+    Device_Handle_t *spiflash_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SPI_FLASH, 1);
+    Device_Handle_t *wifi_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_WIFI, 1);
 
     if (rs485_handle && Serial_Operations.Init((Serial_Device_t *)rs485_handle->device) != SERIAL_OK)
     {
@@ -149,7 +163,7 @@ void App_Init(void)
     {
         Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init UART");
     }
-    if (wifi_handle && WiFi_Init((Serial_Device_t *)wifi_handle->device) != AT_ERR_NONE)
+    if (wifi_serial_handle && wifi_handle && WiFi_TaskInit((WiFi_Device_t *)wifi_handle->device, (Serial_Device_t *)wifi_serial_handle->device) != AT_ERR_NONE)
     {
         Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init WiFi");
     }
@@ -165,6 +179,10 @@ void App_Init(void)
     {
         Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init PCF8574");
     }
+    if (spiflash_handle && W25Qxx_Init(((SPI_Flash_Device_t *)spiflash_handle->device)->config) != FLASH_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init SPI Flash");
+    }
 
     // 创建任务
     rtos_ops->TaskCreate(App_RS485_PollTask, "RS485_Poll", 256, rs485_handle->device, 1);
@@ -173,6 +191,15 @@ void App_Init(void)
     rtos_ops->TaskCreate(App_EEPROMTask, "EEPROM", 256, eeprom_handle->device, 1);
     rtos_ops->TaskCreate(App_WifiTask, "WiFi", 512, wifi_handle->device, 1);
     rtos_ops->TaskCreate(App_CANTask, "CAN", 256, can_handle->device, 1);
+    rtos_ops->TaskCreate(App_SPIFlashTask, "SPI_Flash", 256, spiflash_handle->device, 1);
+
+    // 启动调度器
+    rtos_ops->TaskStartScheduler();
+    Log_Message(LOG_LEVEL_ERROR, "[App] Failed to start scheduler");
+    while (1)
+    {
+        rtos_ops->Delay(1000);
+    }
 }
 
 /**
@@ -255,7 +282,7 @@ void App_EEPROMTask(void *pvParameters)
             uint8_t read_data[4];
             if (EEPROMReadBytesFromReg(0x00, read_data, 4) == IIC_OK)
             {
-                Log_Message(LOG_LEVEL_INFO, "[EEPROM] Read: 0x%02X, 0x%02X, 0x%02X, 0x%02X",
+                Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Read: 0x%02X, 0x%02X, 0x%02X, 0x%02X",
                             read_data[0], read_data[1], read_data[2], read_data[3]);
             }
             else
@@ -275,12 +302,12 @@ void App_EEPROMTask(void *pvParameters)
 
 /**
  * @brief WiFi 管理任务
- * @param pvParameters 任务参数（串口设备实例）
+ * @param pvParameters 任务参数（WiFi 设备实例）
  */
 void App_WifiTask(void *pvParameters)
 {
-    Serial_Device_t *serial_dev = (Serial_Device_t *)pvParameters;
-    if (!serial_dev)
+    WiFi_Device_t *wifi_dev = (WiFi_Device_t *)pvParameters;
+    if (!wifi_dev)
     {
         Log_Message(LOG_LEVEL_ERROR, "[WiFi] Invalid handle");
         vTaskDelete(NULL);
@@ -288,15 +315,40 @@ void App_WifiTask(void *pvParameters)
 
     while (1)
     {
-        if (WiFi_ConnectTCPServer(serial_dev, TCP_SERVER_IP, TCP_PORT) == AT_ERR_NONE)
+        // 查询 WiFi 状态
+        WiFi_Status_t status = {0};
+        if (WiFi_QueryStatus(wifi_dev, &status) == AT_ERR_NONE)
+        {
+            Log_Message(LOG_LEVEL_INFO, "[WiFi] Status: %s, SSID: %s, IP: %s",
+                        status.connected ? "Connected" : "Not connected",
+                        status.ssid, status.ip_addr);
+        }
+        else
+        {
+            Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to query status");
+        }
+
+        // 查询信号强度
+        int8_t rssi;
+        if (WiFi_QuerySignalStrength(wifi_dev, &rssi) == AT_ERR_NONE)
+        {
+            Log_Message(LOG_LEVEL_INFO, "[WiFi] RSSI: %d dBm", rssi);
+        }
+        else
+        {
+            Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to query RSSI");
+        }
+
+        // TCP 数据传输
+        if (status.connected && WiFi_ConnectTCPServer(wifi_dev, TCP_SERVER_IP, TCP_PORT) == AT_ERR_NONE)
         {
             uint8_t data[] = "Hello from STM32!";
             uint16_t data_len = strlen((char *)data);
-            if (WiFi_SendTCPData(serial_dev, data, data_len) == AT_ERR_NONE)
+            if (WiFi_SendTCPData(wifi_dev, data, data_len) == AT_ERR_NONE)
             {
                 uint8_t rx_buffer[TCP_BUFFER_SIZE];
                 uint16_t rx_len = TCP_BUFFER_SIZE;
-                if (WiFi_ReceiveTCPData(serial_dev, rx_buffer, &rx_len, 5000) == AT_ERR_NONE)
+                if (WiFi_ReceiveTCPData(wifi_dev, rx_buffer, &rx_len, 5000) == AT_ERR_NONE)
                 {
                     Log_Message(LOG_LEVEL_INFO, "[WiFi] Received TCP data: %.*s", rx_len, rx_buffer);
                 }
@@ -309,6 +361,7 @@ void App_WifiTask(void *pvParameters)
             {
                 Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to send TCP data");
             }
+            WiFi_DisconnectTCPServer(wifi_dev);
         }
         else
         {
@@ -362,13 +415,45 @@ void App_CANTask(void *pvParameters)
     }
 }
 
-/*
- * 示例用法：
- * 1. 在主函数中调用 App_Init()
- * App_Init();
- *
- * 2. 确保 RTOS 抽象层已设置
- * RTOS_SetOps(&FreeRTOS_Ops);
- *
- * 3. 设备通过 DeviceManager 注册并初始化
+/**
+ * @brief SPI Flash 管理任务
+ * @param pvParameters 任务参数（SPI Flash 设备实例）
  */
+void App_SPIFlashTask(void *pvParameters)
+{
+    SPI_Flash_Device_t *flash_dev = (SPI_Flash_Device_t *)pvParameters;
+    if (!flash_dev || !flash_dev->config)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Invalid handle");
+        vTaskDelete(NULL);
+    }
+
+    while (1)
+    {
+        uint8_t write_data[] = {0xAA, 0xBB, 0xCC, 0xDD};
+        uint32_t address = 0x000000;
+        uint16_t data_len = sizeof(write_data);
+
+        if (SPI_Flash_Write_With_Erase(flash_dev->config, write_data, address, data_len) == 0)
+        {
+            uint8_t read_data[4];
+            if (SPI_Flash_ReadData(flash_dev->config, read_data, address, data_len) == FLASH_OK)
+            {
+                Log_Message(LOG_LEVEL_INFO, "[SPI Flash] Read: 0x%02X, 0x%02X, 0x%02X, 0x%02X",
+                            read_data[0], read_data[1], read_data[2], read_data[3]);
+            }
+            else
+            {
+                Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Read failed");
+            }
+        }
+        else
+        {
+            Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Write with erase failed");
+        }
+
+        const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
+        if (rtos_ops)
+            rtos_ops->Delay(5000);
+    }
+}

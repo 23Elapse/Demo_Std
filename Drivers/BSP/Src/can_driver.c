@@ -261,3 +261,4 @@ const CAN_Ops_t CAN_Operations = {
  * CAN_Message_t rx_msg;
  * CAN_Operations.ReceiveMessage(&can_dev, &rx_msg, 1000);
  */
+

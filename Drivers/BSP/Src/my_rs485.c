@@ -180,26 +180,27 @@ RS485_Status rs485_read_rx(RS485_Device_t *dev, uint8_t *data)
     return RS485_OK;
 }
 
-/**
- * @brief 清空发送缓冲区
- * @param dev RS485 设备实例
- */
-void rs485_clear_tx(RS485_Device_t *dev)
-{
-    if (dev)
-    {
-        RingBuffer_Clear(&dev->tx_buffer);
-    }
-}
+///**
+// * @brief 清空发送缓冲区
+// * @param dev RS485 设备实例
+// */
+//void rs485_clear_tx(RS485_Device_t *dev)
+//{
+//    if (dev)
+//    {
+//        RingBuffer_Clear(&dev->tx_buffer);
+//    }
+//}
 
-/**
- * @brief 清空接收缓冲区
- * @param dev RS485 设备实例
- */
-void rs485_clear_rx(RS485_Device_t *dev)
-{
-    if (dev)
-    {
-        RingBuffer_Clear(&dev->rx_buffer);
-    }
-}
+///**
+// * @brief 清空接收缓冲区
+// * @param dev RS485 设备实例
+// */
+//void rs485_clear_rx(RS485_Device_t *dev)
+//{
+//    if (dev)
+//    {
+//        RingBuffer_Clear(&dev->rx_buffer);
+//    }
+//}
+

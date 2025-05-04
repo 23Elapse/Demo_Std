@@ -2,6 +2,7 @@
 #include "ring_buffer.h"
 #include "rtos_abstraction.h"
 #include "pch.h"
+#include "stdarg.h"
 #define LOG_BUFFER_SIZE 32
 static RingBuffer_t log_buffer;
 static uint8_t log_data[LOG_BUFFER_SIZE][64]; // 假设每条日志最大 64 字节

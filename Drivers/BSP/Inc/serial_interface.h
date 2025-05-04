@@ -30,7 +30,7 @@ typedef enum
 typedef struct
 {
     Serial_ErrorType_t type;
-    TickType_t timestamp;
+    uint32_t timestamp;
     USART_TypeDef *instance;
 } Serial_ErrorLog_t;
 

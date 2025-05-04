@@ -145,3 +145,4 @@ Common_Status Common_TIM_Init(TIM_TypeDef *instance, uint32_t period_us, uint8_t
 
     return COMMON_OK;
 }
+

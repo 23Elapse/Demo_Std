@@ -26,6 +26,18 @@ typedef struct
     void (*TaskDelete)(void *task);                                                                                        // 删除任务
     void *(*Malloc)(size_t size);                                                                                          // 动态内存分配
     void (*Free)(void *ptr);                                                                                               // 释放动态内存
+    void (*TaskStartScheduler)(void);                                                                                      // 开始任务调度
+    void *(*CreateQueueMutex)(void);                                                                                       // 创建互斥信号量
+    void (*DeleteQueueMutex)(void *mutex);                                                                                 // 删除互斥信号量
+    void *(*CreateQueue)(size_t item_size, size_t queue_length);                                                          // 创建队列
+    void (*DeleteQueue)(void *queue);                                                                                     // 删除队列
+    uint8_t (*ReceiveQueue)(void *queue, void *item, uint32_t timeout);                                                      // 接收队列
+    uint8_t (*SendQueue)(void *queue, const void *item, uint32_t timeout);                                                         // 发送队列
+    uint8_t (*SendQueueFromISR)(void *queue, const void *item, void *xHigherPriorityTaskWoken);                                     // 中断中发送队列
+    uint8_t (*ReceiveQueueFromISR)(void *queue, void *item, void *xHigherPriorityTaskWoken);                                   // 中断中接收队列
+    void (*QueueGive)(void *queue);                                                                                        // 释放队列
+    uint8_t (*QueueTake)(void *queue, uint32_t timeout);                                                                     // 获取队列
+    
 } RTOS_Ops_t;
 
 /**

@@ -3,9 +3,9 @@
 /* 重定义fputc函数, printf函数最终会通过调用fputc输出字符串到串口 */
 int fputc(int ch, FILE *f)
 {
-    while ((USART1->SR & 0X40) == 0);               /* 等待上一个字符发送完成 */
+    while ((USART_UX->SR & 0X40) == 0);               /* 等待上一个字符发送完成 */
 
-    USART1->DR = (uint8_t)ch;                       /* 将要发送的字符 ch 写入到DR寄存器 */
+    USART_UX->DR = (uint8_t)ch;                       /* 将要发送的字符 ch 写入到DR寄存器 */
     return ch;
 }
 

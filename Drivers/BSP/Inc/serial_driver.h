@@ -66,4 +66,5 @@ Serial_Status Serial_Driver_ReceiveByte(Serial_Device_t *dev, uint8_t *byte, voi
 
 void Serial_Driver_IRQHandler(Serial_Device_t *dev);
 
-#endif /* __SERIAL_DRIVER_H */
+#endif
+

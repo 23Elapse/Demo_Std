@@ -66,4 +66,5 @@ typedef struct
 
 extern const CAN_Ops_t CAN_Operations;
 
-#endif /* __CAN_DRIVER_H */
+#endif
+

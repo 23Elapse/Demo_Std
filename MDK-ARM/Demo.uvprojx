@@ -475,6 +475,41 @@
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\rtos_abstraction.c</FilePath>
             </File>
+            <File>
+              <FileName>app_tasks.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\app_tasks.c</FilePath>
+            </File>
+            <File>
+              <FileName>device_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\device_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>log_system.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\log_system.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_rs485.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\my_rs485.c</FilePath>
+            </File>
+            <File>
+              <FileName>protocol_handler.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\protocol_handler.c</FilePath>
+            </File>
+            <File>
+              <FileName>serial_interface.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\serial_interface.c</FilePath>
+            </File>
+            <File>
+              <FileName>state_machine.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\state_machine.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
