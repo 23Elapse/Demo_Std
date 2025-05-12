@@ -38,7 +38,7 @@ void Log_ToBuffer(Log_Level_t level, const char *message)
 
 void Log_Message(Log_Level_t level, const char *format, ...)
 {
-    char buffer[64];
+    char buffer[128];
     va_list args;
     va_start(args, format);
     vsnprintf(buffer, sizeof(buffer), format, args);

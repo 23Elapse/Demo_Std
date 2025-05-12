@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.comTriplett
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-05 00:52:10
+ * @LastEditTime: 2025-05-13 01:30:03
  * @FilePath: \Demo\Drivers\BSP\Src\app_tasks.c
  * @Description: 应用任务实现
  *
@@ -188,7 +188,7 @@ void App_Init(void)
     rtos_ops->TaskCreate(App_RS485_PollTask, "RS485_Poll", 256, rs485_handle->device, 1);
     rtos_ops->TaskCreate(App_SerialRxTask, "Serial_Rx", 256, rs485_handle->device, 1);
     rtos_ops->TaskCreate(App_ErrorLogTask, "Error_Log", 256, NULL, 1);
-    rtos_ops->TaskCreate(App_EEPROMTask, "EEPROM", 256, eeprom_handle->device, 1);
+    // rtos_ops->TaskCreate(App_EEPROMTask, "EEPROM", 256, eeprom_handle->device, 1);
     rtos_ops->TaskCreate(App_WifiTask, "WiFi", 512, wifi_handle->device, 1);
     rtos_ops->TaskCreate(App_CANTask, "CAN", 256, can_handle->device, 1);
     rtos_ops->TaskCreate(App_SPIFlashTask, "SPI_Flash", 256, spiflash_handle->device, 1);

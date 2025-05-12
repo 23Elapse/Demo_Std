@@ -1,94 +1,83 @@
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-02-05 21:24:07
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-05-12 21:20:40
+ * @FilePath: \Demo\Drivers\SYSTEM\Src\delay.c
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved. 
+ */
 #include "pch.h"
 #include "delay.h"
-static uint16_t  fac_us=0;							//us延时倍乘数			   
-//static uint16_t fac_ms=0;							//ms延时倍乘数,在os下,代表每个节拍的ms数
-void delay_init(uint16_t SYSCLK)
-{
- 	SysTick_CLKSourceConfig(SysTick_CLKSource_HCLK_Div8); 
-	fac_us=SYSCLK/8;						//不论是否使用OS,fac_us都需要使用
-//	fac_ms=(uint16_t)fac_us*1000;				//非OS下,代表每个ms需要的systick时钟数   
+static uint32_t fac_us;  // 每微秒的SysTick周期数
 
-}	
+void delay_init(uint32_t SYSCLK) {
+    SysTick_CLKSourceConfig(SysTick_CLKSource_HCLK);  // SysTick时钟源 = HCLK
+    fac_us = SYSCLK / 1000000;  // 计算每微秒的周期数
+}
+void delay_us(uint32_t nus) {
+    if (nus == 0) return;
 
-//void delay_us(uint32_t nus)
-//{
-//    uint32_t ticks;
-//    uint32_t told, tnow, tcnt = 0;
-//    uint32_t reload = SysTick->LOAD;        /* LOAD的值 */
-//    ticks = nus * g_fac_us;                 /* 需要的节拍数 */
+    uint32_t ticks = nus * fac_us;
+    if (ticks == 0) return;
 
-//    told = SysTick->VAL;                    /* 刚进入时的计数器值 */
-//    while (1)
-//    {
-//        tnow = SysTick->VAL;
-//        if (tnow != told)
-//        {
-//            if (tnow < told)
-//            {
-//                tcnt += told - tnow;        /* 这里注意一下SYSTICK是一个递减的计数器就可以了 */
-//            }
-//            else
-//            {
-//                tcnt += reload - tnow + told;
-//            }
-//            told = tnow;
-//            if (tcnt >= ticks) 
-//            {
-//                break;                      /* 时间超过/等于要延迟的时间,则退出 */
-//            }
-//        }
-//    }
-//} 
+    const uint32_t max_ticks = 0xFFFFFF;
 
-void delay_us(uint32_t nus)
-{		
-	uint32_t temp;	    	 
-	SysTick->LOAD=nus*fac_us; 				//时间加载	  		 
-	SysTick->VAL=0x00;        				//清空计数器
-	SysTick->CTRL|=SysTick_CTRL_ENABLE_Msk ; //开始倒数 	 
-	do
-	{
-		temp=SysTick->CTRL;
-	}while((temp&0x01)&&!(temp&(1<<16)));	//等待时间到达   
-	SysTick->CTRL&=~SysTick_CTRL_ENABLE_Msk; //关闭计数器
-	SysTick->VAL =0X00;       				//清空计数器 
+    SysTick->CTRL = 0;  // 关闭 SysTick，避免乱跳
+
+    while (ticks > max_ticks) {
+        SysTick->LOAD = max_ticks - 1;  // SysTick 是从 LOAD 开始递减到 0
+        SysTick->VAL = 0;
+        SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_CLKSOURCE_Msk;
+
+        while ((SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk) == 0);
+
+        SysTick->CTRL = 0;
+        ticks -= max_ticks;
+    }
+
+    SysTick->LOAD = ticks - 1;  // 注意这里也是 -1
+    SysTick->VAL = 0;
+    SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_CLKSOURCE_Msk;
+
+    while ((SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk) == 0);
+
+    SysTick->CTRL = 0;
 }
 
-/**
-  * @brief  启动系统滴答定时器 SysTick
-  * @param  无
-  * @retval 无
-  */
-void SysTick_Init(void)
-{
-	/* SystemFrequency / 1000    1ms中断一次
-	 * SystemFrequency / 100000	 10us中断一次
-	 * SystemFrequency / 1000000 1us中断一次
-	 */
-	if (SysTick_Config(SystemCoreClock / 100000))
-	{ 
-		/* Capture error */ 
-		while (1);
-	}
+// void delay_us(uint32_t nus) {
+//     uint32_t ticks, start, end;
+//     uint32_t max_ticks = 0xFFFFFF;  // SysTick LOAD最大值
+
+//     if (nus == 0) return;
+
+//     ticks = nus * fac_us;  // 总需要的周期数
+
+//     while (ticks > max_ticks) {
+//         // 分次延时，每次最多max_ticks周期
+//         SysTick->LOAD = max_ticks;
+//         SysTick->VAL = 0;
+//         SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
+//         do {
+//             start = SysTick->CTRL;
+//         } while ((start & SysTick_CTRL_COUNTFLAG_Msk) == 0);
+//         SysTick->CTRL &= ~SysTick_CTRL_ENABLE_Msk;
+//         ticks -= max_ticks;
+//     }
+
+//     // 剩余周期数
+//     SysTick->LOAD = ticks;
+//     SysTick->VAL = 0;
+//     SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
+//     do {
+//         end = SysTick->CTRL;
+//     } while ((end & SysTick_CTRL_COUNTFLAG_Msk) == 0);
+//     SysTick->CTRL &= ~SysTick_CTRL_ENABLE_Msk;
+// }
+
+void delay_ms(uint32_t nms) {
+    while (nms--) {
+        delay_us(1000);  // 分解为1ms延时
+    }
 }
-/**
- * @brief     延时nms
- * @param     nms: 要延时的ms数 (0< nms <= (2^32 / fac_us / 1000))(fac_us一般等于系统主频, 自行套入计算)
- * @retval    无
- */
-void delay_ms(uint16_t nms)
-{
-    delay_us((uint32_t)(nms * 1000));                   /* 普通方式延时 */
-}
-
-
-
-
-
-
-
-
-
-
-
-

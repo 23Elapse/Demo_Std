@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 15:00:00
+ * @LastEditTime: 2025-05-13 01:25:00
  * @FilePath: \Demo\Drivers\BSP\Inc\iic_core.h
  * @Description: IIC 核心头文件，支持 RTOS 抽象
  *
@@ -35,39 +35,12 @@
 #define MAX_IIC_DEVICES 4
 
 /* IO 操作 */
-#define IIC_SCL_1(IIC_x)                                    \
-    do                                                      \
-    {                                                       \
-        if (IIC_x == IIC1)                                  \
-            GPIO_SetBits(IIC1_SCL_GPIO_PORT, IIC1_SCL_PIN); \
-        else                                                \
-            GPIO_SetBits(IIC2_SCL_GPIO_PORT, IIC2_SCL_PIN); \
-    } while (0)
-#define IIC_SCL_0(IIC_x)                                      \
-    do                                                        \
-    {                                                         \
-        if (IIC_x == IIC1)                                    \
-            GPIO_ResetBits(IIC1_SCL_GPIO_PORT, IIC1_SCL_PIN); \
-        else                                                  \
-            GPIO_ResetBits(IIC2_SCL_GPIO_PORT, IIC2_SCL_PIN); \
-    } while (0)
-#define IIC_SDA_1(IIC_x)                                    \
-    do                                                      \
-    {                                                       \
-        if (IIC_x == IIC1)                                  \
-            GPIO_SetBits(IIC1_SDA_GPIO_PORT, IIC1_SDA_PIN); \
-        else                                                \
-            GPIO_SetBits(IIC2_SDA_GPIO_PORT, IIC2_SDA_PIN); \
-    } while (0)
-#define IIC_SDA_0(IIC_x)                                      \
-    do                                                        \
-    {                                                         \
-        if (IIC_x == IIC1)                                    \
-            GPIO_ResetBits(IIC1_SDA_GPIO_PORT, IIC1_SDA_PIN); \
-        else                                                  \
-            GPIO_ResetBits(IIC2_SDA_GPIO_PORT, IIC2_SDA_PIN); \
-    } while (0)
-#define IIC_SDA_READ(IIC_x) ((IIC_x == IIC1) ? GPIO_ReadInputDataBit(IIC1_SDA_GPIO_PORT, IIC1_SDA_PIN) : GPIO_ReadInputDataBit(IIC2_SDA_GPIO_PORT, IIC2_SDA_PIN))
+#define IIC_SCL_1(IIC_x)        do{ if(IIC_x == IIC1) GPIO_SetBits(IIC1_SCL_GPIO_PORT, IIC1_SCL_PIN); else GPIO_SetBits(IIC2_SCL_GPIO_PORT, IIC2_SCL_PIN);; }while(0)    /* SCL */
+#define IIC_SCL_0(IIC_x)        do{ if(IIC_x == IIC1) GPIO_ResetBits(IIC1_SCL_GPIO_PORT, IIC1_SCL_PIN); else GPIO_ResetBits(IIC2_SCL_GPIO_PORT, IIC2_SCL_PIN); }while(0)    /* SCL */
+#define IIC_SDA_1(IIC_x)        do{ if(IIC_x == IIC1) GPIO_SetBits(IIC1_SDA_GPIO_PORT, IIC1_SDA_PIN); else GPIO_SetBits(IIC2_SDA_GPIO_PORT, IIC2_SDA_PIN); }while(0)    /* SDA */
+#define IIC_SDA_0(IIC_x)        do{ if(IIC_x == IIC1) GPIO_ResetBits(IIC1_SDA_GPIO_PORT, IIC1_SDA_PIN); else GPIO_ResetBits(IIC2_SDA_GPIO_PORT, IIC2_SDA_PIN); }while(0)    /* SDA */
+#define IIC_SDA_READ(IIC_x)     ((IIC_x == IIC1) ? GPIO_ReadInputDataBit(IIC1_SDA_GPIO_PORT, IIC1_SDA_PIN) : \
+                                    GPIO_ReadInputDataBit(IIC2_SDA_GPIO_PORT, IIC2_SDA_PIN))    /* 读SDA */ 
 #define I2C_TIMEOUT 1000
 
 /**

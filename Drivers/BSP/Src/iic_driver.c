@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-05 00:54:59
+ * @LastEditTime: 2025-05-13 01:37:56
  * @FilePath: \Demo\Drivers\BSP\Src\iic_driver.c
  * @Description: IIC 驱动实现，支持 RTOS 抽象
  *
@@ -193,7 +193,7 @@ IIC_Status IIC_ReadByte(uint8_t instance_id, uint8_t ack, uint8_t *data)
         delay_us(5);
     }
 
-    if (!ack)
+    if (ack)
     {
         IIC_SDA_0(instance_id);
     }
@@ -328,12 +328,6 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         return 1;
     }
 
-//    if (!rtos_ops->SemaphoreTake(IICx->mutex, 100))
-//    {
-//        printf("[IIC%d] Failed to take mutex, timeout after 100ms\n", IICx->instance_id);
-//        return 1;
-//    }
-
     if (EEPROM_ADDR == i2c_dev->dev_addr)
     {
         uint8_t temp;
@@ -375,8 +369,7 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
             rtos_ops->SemaphoreGive(IICx->mutex);
             return 1;
         }
-
-        status = IIC_WriteByte(IICx->instance_id, 0xFF);
+        // status = IIC_WriteByte(IICx->instance_id, 0xFF);
         rtos_ops->SemaphoreGive(IICx->mutex);
         return (status == IIC_OK) ? 0 : 1;
     }

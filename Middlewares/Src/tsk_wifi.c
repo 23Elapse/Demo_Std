@@ -135,6 +135,11 @@ AT_Error_Code WiFi_TaskInit(WiFi_Device_t *device, Serial_Device_t *serial_dev)
         Log_Message(LOG_LEVEL_ERROR, "[WiFi] Invalid RTOS, device, or serial_dev");
         return AT_ERR_SEND_FAILED;
     }
+    if (!rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
+    {
+       printf("[IIC%d] Failed to take mutex, timeout after 100ms\n", IIC1_config.instance_id);
+       return 1;
+    }
 
     if (WiFi_SetOps(device, &default_wifi_ops, serial_dev) != AT_ERR_NONE) {
         Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to set ops");
@@ -153,7 +158,7 @@ AT_Error_Code WiFi_TaskInit(WiFi_Device_t *device, Serial_Device_t *serial_dev)
         rtos_ops->DeleteQueue(cmdQueue);
         return AT_ERR_SEND_FAILED;
     }
-
+    rtos_ops->SemaphoreGive(IIC1_config.mutex);
     Log_Message(LOG_LEVEL_INFO, "[WiFi] Task and queue initialized");
     return AT_ERR_NONE;
 }
