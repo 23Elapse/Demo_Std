@@ -5,6 +5,7 @@
  */
 
 #include "rtos_abstraction.h"
+#ifdef RT_THREAD
 #include "rtthread.h"
 
 /**
@@ -152,6 +153,7 @@ const RTOS_Ops_t RTThread_Ops = {
     .TaskCreate = RTThread_TaskCreate,
     .TaskDelete = RTThread_TaskDelete};
 
+#endif // RT_THREAD
 /*
  * 示例用法：
  * 1. 初始化 RTOS 抽象层

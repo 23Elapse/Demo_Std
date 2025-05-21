@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F429_439xx,</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Drivers\BSP\Inc;..\Drivers\CMSIS\Device\ST\STM32F4xx\Include;..\Drivers\CMSIS\Include;..\Drivers\STM32F4xx_StdPeriph_Driver\inc;..\Drivers\SYSTEM\Inc;..\User;..\Middlewares\FreeRTOS\include;..\Middlewares\FreeRTOS;..\Middlewares\FreeRTOS\portable\RVDS\ARM_CM4F;..\Middlewares\Inc</IncludePath>
+              <IncludePath>..\Drivers\BSP\Inc;..\Drivers\CMSIS\Device\ST\STM32F4xx\Include;..\Drivers\CMSIS\Include;..\Drivers\STM32F4xx_StdPeriph_Driver\inc;..\Drivers\SYSTEM\Inc;..\User;..\Middlewares\FreeRTOS\include;..\Middlewares\FreeRTOS;..\Middlewares\FreeRTOS\portable\RVDS\ARM_CM4F;..\Middlewares\Inc;..\Application\Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -383,22 +383,62 @@
       </TargetOption>
       <Groups>
         <Group>
-          <GroupName>STARTUP</GroupName>
+          <GroupName>Applicantion</GroupName>
           <Files>
             <File>
-              <FileName>startup_stm32f429_439xx.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates\arm\startup_stm32f429_439xx.s</FilePath>
+              <FileName>api_eeprom.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\Src\api_eeprom.c</FilePath>
+            </File>
+            <File>
+              <FileName>api_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\Src\api_wifi.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_tasks.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\Src\app_tasks.c</FilePath>
+            </File>
+            <File>
+              <FileName>tsk_eeprom.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\Src\tsk_eeprom.c</FilePath>
+            </File>
+            <File>
+              <FileName>tsk_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\Src\tsk_wifi.c</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
-          <GroupName>CMISIS</GroupName>
+          <GroupName>USER</GroupName>
           <Files>
             <File>
-              <FileName>system_stm32f4xx.c</FileName>
+              <FileName>main.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates\system_stm32f4xx.c</FilePath>
+              <FilePath>..\User\main.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f4xx_it.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\stm32f4xx_it.c</FilePath>
+            </File>
+            <File>
+              <FileName>pch.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\User\pch.h</FilePath>
+            </File>
+            <File>
+              <FileName>FreeRTOSConfig.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\User\FreeRTOSConfig.h</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_demo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\freertos_demo.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -406,39 +446,9 @@
           <GroupName>BSP</GroupName>
           <Files>
             <File>
-              <FileName>led.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\led.c</FilePath>
-            </File>
-            <File>
-              <FileName>key.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\key.c</FilePath>
-            </File>
-            <File>
-              <FileName>exti.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\exti.c</FilePath>
-            </File>
-            <File>
-              <FileName>wdg.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\wdg.c</FilePath>
-            </File>
-            <File>
               <FileName>btim.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\btim.c</FilePath>
-            </File>
-            <File>
-              <FileName>spi_flash.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\spi_flash.c</FilePath>
-            </File>
-            <File>
-              <FileName>pcf8574.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\pcf8574.c</FilePath>
             </File>
             <File>
               <FileName>can_driver.c</FileName>
@@ -451,44 +461,24 @@
               <FilePath>..\Drivers\BSP\Src\common_driver.c</FilePath>
             </File>
             <File>
+              <FileName>exti.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\exti.c</FilePath>
+            </File>
+            <File>
               <FileName>iic_driver.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\Src\iic_driver.c</FilePath>
             </File>
             <File>
-              <FileName>serial_driver.c</FileName>
+              <FileName>key.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\serial_driver.c</FilePath>
+              <FilePath>..\Drivers\BSP\Src\key.c</FilePath>
             </File>
             <File>
-              <FileName>ring_buffer.c</FileName>
+              <FileName>led.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\ring_buffer.c</FilePath>
-            </File>
-            <File>
-              <FileName>rtos_freertos_impl.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\rtos_freertos_impl.c</FilePath>
-            </File>
-            <File>
-              <FileName>rtos_abstraction.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\rtos_abstraction.c</FilePath>
-            </File>
-            <File>
-              <FileName>app_tasks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\app_tasks.c</FilePath>
-            </File>
-            <File>
-              <FileName>device_manager.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\device_manager.c</FilePath>
-            </File>
-            <File>
-              <FileName>log_system.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\log_system.c</FilePath>
+              <FilePath>..\Drivers\BSP\Src\led.c</FilePath>
             </File>
             <File>
               <FileName>my_rs485.c</FileName>
@@ -496,19 +486,24 @@
               <FilePath>..\Drivers\BSP\Src\my_rs485.c</FilePath>
             </File>
             <File>
-              <FileName>protocol_handler.c</FileName>
+              <FileName>pcf8574.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\protocol_handler.c</FilePath>
+              <FilePath>..\Drivers\BSP\Src\pcf8574.c</FilePath>
             </File>
             <File>
-              <FileName>serial_interface.c</FileName>
+              <FileName>serial_driver.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\serial_interface.c</FilePath>
+              <FilePath>..\Drivers\BSP\Src\serial_driver.c</FilePath>
             </File>
             <File>
-              <FileName>state_machine.c</FileName>
+              <FileName>spi_flash.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\state_machine.c</FilePath>
+              <FilePath>..\Drivers\BSP\Src\spi_flash.c</FilePath>
+            </File>
+            <File>
+              <FileName>wdg.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\Src\wdg.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -529,6 +524,76 @@
               <FileName>usart.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Drivers\SYSTEM\Src\usart.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Middlewares</GroupName>
+          <Files>
+            <File>
+              <FileName>device_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\device_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>log_system.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\log_system.c</FilePath>
+            </File>
+            <File>
+              <FileName>protocol_handler.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\protocol_handler.c</FilePath>
+            </File>
+            <File>
+              <FileName>ring_buffer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\ring_buffer.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtos_abstraction.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\rtos_abstraction.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtos_freertos_impl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\rtos_freertos_impl.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtos_rtthread_impl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\rtos_rtthread_impl.c</FilePath>
+            </File>
+            <File>
+              <FileName>serial_interface.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\serial_interface.c</FilePath>
+            </File>
+            <File>
+              <FileName>state_machine.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\Src\state_machine.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>STARTUP</GroupName>
+          <Files>
+            <File>
+              <FileName>startup_stm32f429_439xx.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates\arm\startup_stm32f429_439xx.s</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>CMISIS</GroupName>
+          <Files>
+            <File>
+              <FileName>system_stm32f4xx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates\system_stm32f4xx.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -804,36 +869,6 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>USER</GroupName>
-          <Files>
-            <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\main.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f4xx_it.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\stm32f4xx_it.c</FilePath>
-            </File>
-            <File>
-              <FileName>pch.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\User\pch.h</FilePath>
-            </File>
-            <File>
-              <FileName>FreeRTOSConfig.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\User\FreeRTOSConfig.h</FilePath>
-            </File>
-            <File>
-              <FileName>freertos_demo.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\freertos_demo.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
           <GroupName>FreeRTOS_CORE</GroupName>
           <Files>
             <File>
@@ -885,31 +920,6 @@
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Middlewares\FreeRTOS\portable\MemMang\heap_4.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Middlewares</GroupName>
-          <Files>
-            <File>
-              <FileName>api_wifi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\api_wifi.c</FilePath>
-            </File>
-            <File>
-              <FileName>tsk_wifi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\tsk_wifi.c</FilePath>
-            </File>
-            <File>
-              <FileName>api_eeprom.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\api_eeprom.c</FilePath>
-            </File>
-            <File>
-              <FileName>tsk_eeprom.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\tsk_eeprom.c</FilePath>
             </File>
           </Files>
         </Group>

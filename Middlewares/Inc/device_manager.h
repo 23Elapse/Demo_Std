@@ -77,7 +77,7 @@ void DeviceManager_Init(Device_Manager_t *mgr, Device_Handle_t *device_array, ui
  * @param id 设备 ID
  * @return Device_Handle_t* 设备句柄，失败返回 NULL
  */
-Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, void *device, Device_Type_t type, uint8_t id);
+Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, const void *device, Device_Type_t type, uint8_t id);
 
 /**
  * @brief 查找设备

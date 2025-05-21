@@ -252,7 +252,7 @@ void EepromMonitorTask(void *pvParameters)
 {
     EepromTableEntry **params = (EepromTableEntry **)pvParameters;
     EepromTableEntry *table = params[0];
-    uint16_t table_size = (uint16_t)params[1];
+    uint16_t table_size = *((uint16_t*)params[1]);
 
     while (1)
     {

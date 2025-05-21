@@ -65,6 +65,6 @@ typedef struct
 } CAN_Ops_t;
 
 extern const CAN_Ops_t CAN_Operations;
-
+void CAN_IRQHandler(CAN_Device_t *dev);
 #endif
 

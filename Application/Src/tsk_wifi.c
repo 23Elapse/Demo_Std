@@ -138,7 +138,7 @@ AT_Error_Code WiFi_TaskInit(WiFi_Device_t *device, Serial_Device_t *serial_dev)
     if (!rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
     {
        printf("[IIC%d] Failed to take mutex, timeout after 100ms\n", IIC1_config.instance_id);
-       return 1;
+       return AT_ERR_GET_MUTEX_FAILED;
     }
 
     if (WiFi_SetOps(device, &default_wifi_ops, serial_dev) != AT_ERR_NONE) {

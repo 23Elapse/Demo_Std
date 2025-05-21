@@ -19,23 +19,23 @@
 /**
  * @brief AT 指令配置表
  */
-static const AT_Cmd_Config at_cmd_table[] = {
-    {"AT\r\n", "OK", 1000, 3, "AT command test"},
-    {"AT+GMR\r\n", "OK", 2000, 2, "Check the firmware version"},
-    {"AT+CWMODE=1\r\n", "OK", 2000, 2, "Setting Station Mode"},
-    {"AT+CWJAP=\"" WIFI_SSID "\",\"" WIFI_PASSWORD "\"\r\n", "OK", 10000, 3, "Connecting to a Router"},
-    {"AT+CIPSTA?\r\n", "+CIPSTA:", 2000, 1, "Query IP address"},
-    {"AT+CWJAP?\r\n", "+CWJAP:", 2000, 2, "Query connection status"},
-    {"AT+CWJAP_CUR?\r\n", "+CWJAP_CUR:", 3000, 2, "Query current WiFi"},
-    {"AT+CWLAP\r\n", "+CWLAP:", 10000, 1, "Scan WiFi networks"},
-    {"AT+CWLAPOPT=1\r\n", "OK", 2000, 2, "Set scan options"},
-    {"AT+CWLAPOPT?\r\n", "+CWLAPOPT:", 2000, 2, "Query scan options"},
-    {"AT+CIPSTA_CUR?\r\n", "+CIPSTA_CUR:", 2000, 2, "Query current IP address"},
-    {"AT+CIPSTAMAC_CUR?\r\n", "+CIPSTAMAC_CUR:", 2000, 2, "Query current MAC address"},
-    {"AT+CIPSTO=10\r\n", "OK", 2000, 2, "Set timeout"},
-    {"AT+CIPSTART=\"TCP\",\"" TCP_SERVER_IP "\"," TCP_PORT "\r\n", "OK", 5000, 3, "Connect to TCP server"},
-    {NULL, NULL, 0, 0, NULL}
-};
+//static const AT_Cmd_Config at_cmd_table[] = {
+//    {"AT\r\n", "OK", 1000, 3, "AT command test"},
+//    {"AT+GMR\r\n", "OK", 2000, 2, "Check the firmware version"},
+//    {"AT+CWMODE=1\r\n", "OK", 2000, 2, "Setting Station Mode"},
+//    {"AT+CWJAP=\"" WIFI_SSID "\",\"" WIFI_PASSWORD "\"\r\n", "OK", 10000, 3, "Connecting to a Router"},
+//    {"AT+CIPSTA?\r\n", "+CIPSTA:", 2000, 1, "Query IP address"},
+//    {"AT+CWJAP?\r\n", "+CWJAP:", 2000, 2, "Query connection status"},
+//    {"AT+CWJAP_CUR?\r\n", "+CWJAP_CUR:", 3000, 2, "Query current WiFi"},
+//    {"AT+CWLAP\r\n", "+CWLAP:", 10000, 1, "Scan WiFi networks"},
+//    {"AT+CWLAPOPT=1\r\n", "OK", 2000, 2, "Set scan options"},
+//    {"AT+CWLAPOPT?\r\n", "+CWLAPOPT:", 2000, 2, "Query scan options"},
+//    {"AT+CIPSTA_CUR?\r\n", "+CIPSTA_CUR:", 2000, 2, "Query current IP address"},
+//    {"AT+CIPSTAMAC_CUR?\r\n", "+CIPSTAMAC_CUR:", 2000, 2, "Query current MAC address"},
+//    {"AT+CIPSTO=10\r\n", "OK", 2000, 2, "Set timeout"},
+//    {"AT+CIPSTART=\"TCP\",\"" TCP_SERVER_IP "\"," TCP_PORT "\r\n", "OK", 5000, 3, "Connect to TCP server"},
+//    {NULL, NULL, 0, 0, NULL}
+//};
 
 /**
  * @brief AT 指令状态机上下文
@@ -134,7 +134,7 @@ static StateTransition_t at_transitions[] = {
     {STATE_START, HandleATState_Start},
     {STATE_DATA, HandleATState_Data},
     {STATE_END, HandleATState_End},
-    {0, NULL}
+    {STATE_INIT, NULL}
 };
 
 /**
@@ -150,7 +150,7 @@ static int HandleTCPState_Init(StateContext_t *ctx, uint8_t byte, void *user_dat
 
 static int HandleTCPState_Start(StateContext_t *ctx, uint8_t byte, void *user_data)
 {
-    TCP_StateContext_t *tcp_ctx = (TCP_StateContext_t *)user_data;
+//    TCP_StateContext_t *tcp_ctx = (TCP_StateContext_t *)user_data;
     if (byte == '+') {
         ctx->current_state = STATE_DATA;
     }
@@ -180,7 +180,7 @@ static StateTransition_t tcp_transitions[] = {
     {STATE_START, HandleTCPState_Start},
     {STATE_DATA, HandleTCPState_Data},
     {STATE_END, HandleTCPState_End},
-    {0, NULL}
+    {STATE_INIT, NULL}
 };
 
 /**
@@ -254,7 +254,7 @@ static StateTransition_t status_transitions[] = {
     {STATE_START, HandleStatusState_Start},
     {STATE_DATA, HandleStatusState_Data},
     {STATE_END, HandleStatusState_End},
-    {0, NULL}
+    {STATE_INIT, NULL}
 };
 
 /**
@@ -297,7 +297,7 @@ static int HandleSignalState_Data(StateContext_t *ctx, uint8_t byte, void *user_
     if (strstr((char*)signal_ctx->rx_buffer, "+CWLAP:") != NULL) {
         char *ssid_start = strstr((char*)signal_ctx->rx_buffer, "\"" WIFI_SSID "\"");
         if (ssid_start) {
-            char *rssi_start = strstr(signal_ctx->rx_buffer, ",");
+            char *rssi_start = strstr((const char*)signal_ctx->rx_buffer, ",");
             if (rssi_start) {
                 rssi_start++;
                 rssi_start = strstr(rssi_start, ",");
@@ -329,7 +329,7 @@ static StateTransition_t signal_transitions[] = {
     {STATE_START, HandleSignalState_Start},
     {STATE_DATA, HandleSignalState_Data},
     {STATE_END, HandleSignalState_End},
-    {0, NULL}
+    {STATE_INIT, NULL}
 };
 
 /**
@@ -504,6 +504,7 @@ AT_Error_Code WiFi_SendATCommand(WiFi_Device_t *device, const AT_Cmd_Config *cmd
     }
 
     AT_StateContext_t at_ctx = {0};
+
     StateMachine_Init(&at_ctx.ctx, &at_ctx);
     at_ctx.current_cmd = cmd;
 

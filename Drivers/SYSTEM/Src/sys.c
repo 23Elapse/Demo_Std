@@ -135,15 +135,15 @@ uint8_t SystemClock_Config(uint32_t plln, uint32_t pllm, uint32_t pllp, uint32_t
   // 假设HSE频率为25MHz，计算VCO输入频率
   uint32_t HSE_Freq = 25000000; // 根据实际硬件调整
   float VCO_input = (float)HSE_Freq / pllm;
-  if (VCO_input < 1.0 || VCO_input > 2.0)
+  if (VCO_input < 1.0f || VCO_input > 2.0f)
     return 1; // VCO输入需在1~2MHz
 
   // 计算VCO输出频率及系统时钟
   float VCO_output = VCO_input * plln;
-  if (VCO_output < 192e6 || VCO_output > 432e6)
+  if (VCO_output < 192e6f || VCO_output > 432e6f)
     return 1; // VCO输出需在192~432MHz
   float SysClock = VCO_output / pllp;
-  if (SysClock > 180e6)
+  if (SysClock > 180e6f)
     return 1; // 系统时钟不得超过180MHz
 
   // 配置PLL
@@ -153,15 +153,15 @@ uint8_t SystemClock_Config(uint32_t plln, uint32_t pllm, uint32_t pllp, uint32_t
     ;
 
   // 设置Flash等待周期（根据SysClock）
-  if (SysClock <= 30e6)
+  if (SysClock <= 30e6f)
     FLASH_SetLatency(FLASH_Latency_0);
-  else if (SysClock <= 60e6)
+  else if (SysClock <= 60e6f)
     FLASH_SetLatency(FLASH_Latency_1);
-  else if (SysClock <= 90e6)
+  else if (SysClock <= 90e6f)
     FLASH_SetLatency(FLASH_Latency_2);
-  else if (SysClock <= 120e6)
+  else if (SysClock <= 120e6f)
     FLASH_SetLatency(FLASH_Latency_3);
-  else if (SysClock <= 150e6)
+  else if (SysClock <= 150e6f)
     FLASH_SetLatency(FLASH_Latency_4);
   else
     FLASH_SetLatency(FLASH_Latency_5);
