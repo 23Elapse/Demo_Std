@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-15 20:36:56
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-04-30 10:16:29
+ * @LastEditTime: 2025-05-25 16:21:05
  * @FilePath: \Demo\User\pch.h
  * @Description: 
  * 
@@ -71,7 +71,6 @@
 #include "pcf8574.h"
 #include "freertos_demo.h"
 #include "queue.h"
-#include "tsk_wifi.h"
 #include "api_wifi.h"
 #include "semphr.h"
 #include "FreeRTOS.h"

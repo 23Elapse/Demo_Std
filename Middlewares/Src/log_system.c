@@ -9,9 +9,6 @@ static uint8_t log_data[LOG_BUFFER_SIZE][64]; // 假设每条日志最大 64 字
 
 void Log_Init(void)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-        return;
     if (RingBuffer_Init(&log_buffer, LOG_BUFFER_SIZE, sizeof(uint8_t *)) != RB_OK)
     {
         return;
@@ -20,10 +17,6 @@ void Log_Init(void)
 
 void Log_ToBuffer(Log_Level_t level, const char *message)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-        return;
-
     for (uint8_t i = 0; i < LOG_BUFFER_SIZE; i++)
     {
         if (RingBuffer_IsAvailable(&log_buffer))

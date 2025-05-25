@@ -285,11 +285,6 @@ static void FreeRTOS_DeleteQueue(void *queue)
     }
 }
 
-
-
-
-
-
 /**
  * @brief  FreeRTOS 的 RTOS_Ops_t 实现
  */
@@ -317,21 +312,3 @@ const RTOS_Ops_t FreeRTOS_Ops = {
     .QueueTake = FreeRTOS_QueueTake,
     .CreateQueueMutex = FreeRTOS_QueueCreateMutex,
 };
-/*
- * 示例用法：
- * 1. 初始化 RTOS 抽象层
- * RTOS_SetOps(&FreeRTOS_Ops);
- *
- * 2. 使用 RTOS_Ops_t 接口
- * const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
- * rtos_ops->Delay(100); // 延时 100 ticks
- *
- * 3. 创建任务
- * void MyTask(void *param) {
- *     while (1) {
- *         // 任务逻辑
- *         rtos_ops->Delay(500);
- *     }
- * }
- * rtos_ops->TaskCreate(MyTask, "MyTask", 256, NULL, 3);
- */

@@ -160,15 +160,15 @@ const RTOS_Ops_t RTThread_Ops = {
  * RTOS_SetOps(&RTThread_Ops);
  *
  * 2. 使用 RTOS_Ops_t 接口
- * const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
- * rtos_ops->Delay(100); // 延时 100ms
+ * const RTOS_Ops_t *g_rtos_ops = RTOS_GetOps();
+ * g_rtos_ops->Delay(100); // 延时 100ms
  *
  * 3. 创建任务
  * void MyTask(void *param) {
  *     while (1) {
  *         // 任务逻辑
- *         rtos_ops->Delay(500);
+ *         g_rtos_ops->Delay(500);
  *     }
  * }
- * rtos_ops->TaskCreate(MyTask, "MyTask", 256, NULL, 3);
+ * g_rtos_ops->TaskCreate(MyTask, "MyTask", 256, NULL, 3);
  */

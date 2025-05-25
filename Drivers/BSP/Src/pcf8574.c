@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-05 21:24:07
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 15:00:00
+ * @LastEditTime: 2025-05-25 16:41:29
  * @FilePath: \Demo\Drivers\BSP\Src\pcf8574.c
  * @Description: PCF8574 IIC 扩展 IO 驱动实现
  *
@@ -129,16 +129,9 @@ IIC_Status PCF8574_ReadBit(uint8_t bit, uint8_t *bit_val)
  */
 uint8_t PCF8574_ReadByte(uint8_t *val)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !val)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Invalid RTOS ops or pointer");
-        return 1;
-    }
-
     uint8_t instance_id = IIC1;
 
-    if (!rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
+    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to take mutex, timeout after 100ms");
         return 1;
@@ -148,7 +141,7 @@ uint8_t PCF8574_ReadByte(uint8_t *val)
     if (status != IIC_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to send start signal: %d", status);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return 1;
     }
 
@@ -157,7 +150,7 @@ uint8_t PCF8574_ReadByte(uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to write address (read mode): %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return 1;
     }
 
@@ -166,12 +159,12 @@ uint8_t PCF8574_ReadByte(uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to read byte: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return 1;
     }
 
     IIC_Stop(instance_id);
-    rtos_ops->SemaphoreGive(IIC1_config.mutex);
+    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
     return 0;
 }
 
@@ -182,16 +175,9 @@ uint8_t PCF8574_ReadByte(uint8_t *val)
  */
 IIC_Status PCF8574_WriteByte(uint8_t data)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Invalid RTOS ops");
-        return IIC_ERR_INIT;
-    }
-
     uint8_t instance_id = IIC1;
 
-    if (!rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
+    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to take mutex, timeout after 100ms");
         return IIC_ERR_TIMEOUT;
@@ -201,7 +187,7 @@ IIC_Status PCF8574_WriteByte(uint8_t data)
     if (status != IIC_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to send start signal: %d", status);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -210,7 +196,7 @@ IIC_Status PCF8574_WriteByte(uint8_t data)
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to write address (write mode): %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -219,7 +205,7 @@ IIC_Status PCF8574_WriteByte(uint8_t data)
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to write byte: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -228,10 +214,10 @@ IIC_Status PCF8574_WriteByte(uint8_t data)
     if (status != IIC_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Write operation timeout: %d", status);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
-    rtos_ops->SemaphoreGive(IIC1_config.mutex);
+    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
     return IIC_OK;
 }

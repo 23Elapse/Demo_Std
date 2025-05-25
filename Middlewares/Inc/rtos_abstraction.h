@@ -37,19 +37,14 @@ typedef struct
     uint8_t (*ReceiveQueueFromISR)(void *queue, void *item, void *xHigherPriorityTaskWoken);                                   // 中断中接收队列
     void (*QueueGive)(void *queue);                                                                                        // 释放队列
     uint8_t (*QueueTake)(void *queue, uint32_t timeout);                                                                     // 获取队列
-    
+    void (*Task_Suspend)(void *task);                                                                                       // 挂起任务
+    void (*Task_Resume)(void *task);                                                                                        // 恢复任务
 } RTOS_Ops_t;
 
-/**
- * @brief 设置 RTOS 操作接口
- * @param ops RTOS 操作接口指针
- */
-int RTOS_SetOps(const RTOS_Ops_t *ops);
+// 全局 RTOS 操作接口
+extern RTOS_Ops_t *g_rtos_ops;
 
-/**
- * @brief 获取 RTOS 操作接口
- * @return RTOS 操作接口指针
- */
-const RTOS_Ops_t *RTOS_GetOps(void);
-extern const RTOS_Ops_t FreeRTOS_Ops;
+// FreeRTOS 操作接口实例
+extern RTOS_Ops_t FreeRTOS_Ops;
+
 #endif // RTOS_ABSTRACTION_H

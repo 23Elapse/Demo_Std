@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 20:01:43
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-24 16:35:44
+ * @LastEditTime: 2025-05-25 17:09:44
  * @FilePath: \Demo\Drivers\BSP\Src\can_driver.c
  * @Description: CAN 驱动实现
  *
@@ -25,12 +25,6 @@ CAN_Status CANx_Init(CAN_Device_t *dev)
 {
     if (!dev || !dev->instance || can_device_count >= 2) {
         Log_Message(LOG_LEVEL_ERROR, "[CAN] Invalid device or instance");
-        return CAN_ERROR_INIT;
-    }
-
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops) {
-        Log_Message(LOG_LEVEL_ERROR, "[CAN] RTOS ops not initialized");
         return CAN_ERROR_INIT;
     }
 
@@ -103,13 +97,6 @@ CAN_Status CAN_Deinit(CAN_Device_t *dev)
         Log_Message(LOG_LEVEL_ERROR, "[CAN] Invalid device");
         return CAN_ERROR_INIT;
     }
-
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops) {
-        Log_Message(LOG_LEVEL_ERROR, "[CAN] RTOS ops not initialized");
-        return CAN_ERROR_INIT;
-    }
-
     CAN_ITConfig(dev->instance, CAN_IT_FMP0, DISABLE);
     CAN_DeInit(dev->instance);
 
@@ -182,20 +169,14 @@ CAN_Status CAN_ReceiveMessage(CAN_Device_t *dev, CAN_Message_t *msg, uint32_t ti
         return CAN_ERROR_INIT;
     }
 
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops) {
-        Log_Message(LOG_LEVEL_ERROR, "[CAN] RTOS ops not initialized");
-        return CAN_ERROR_INIT;
-    }
-
-    if (rtos_ops->SemaphoreTake(dev->rx_buffer.sem, timeout)) {
+    if (g_rtos_ops->SemaphoreTake(dev->rx_buffer.sem, timeout)) {
         RB_Status rb_status = RingBuffer_Read(&dev->rx_buffer, msg);
         if (rb_status != RB_OK) {
-            rtos_ops->SemaphoreGive(dev->rx_buffer.sem);
+            g_rtos_ops->SemaphoreGive(dev->rx_buffer.sem);
             Log_Message(LOG_LEVEL_WARNING, "[CAN] RX buffer error: %d", rb_status);
             return (rb_status == RB_ERROR_BUFFER_EMPTY) ? CAN_ERROR_NO_DATA : CAN_ERROR_BUFFER_FULL;
         }
-        rtos_ops->SemaphoreGive(dev->rx_buffer.sem);
+        g_rtos_ops->SemaphoreGive(dev->rx_buffer.sem);
         Log_Message(LOG_LEVEL_INFO, "[CAN] Message received");
         return CAN_OK;
     }
@@ -221,9 +202,8 @@ void CAN_IRQHandler(CAN_Device_t *dev)
         void *xHigherPriorityTaskWoken = NULL;
         RingBuffer_WriteFromISR(&dev->rx_buffer, &msg, &xHigherPriorityTaskWoken);
 
-        const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-        if (rtos_ops) {
-            rtos_ops->YieldFromISR(xHigherPriorityTaskWoken);
+        if (g_rtos_ops) {
+            g_rtos_ops->YieldFromISR(xHigherPriorityTaskWoken);
         }
 
         CAN_ClearITPendingBit(dev->instance, CAN_IT_FMP0);

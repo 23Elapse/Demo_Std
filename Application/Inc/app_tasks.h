@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-04 17:00:00
+ * @LastEditTime: 2025-05-25 18:57:42
  * @FilePath: \Demo\Application\Inc\app_tasks.h
  * @Description: 应用任务头文件
  *
@@ -12,17 +12,18 @@
 #define __APP_TASKS_H
 
 #include "device_manager.h"
-#include "api_eeprom.h"
 #include "api_wifi.h"
 #include "can_driver.h"
 #include "serial_driver.h"
 #include "rtos_abstraction.h"
 #include "log_system.h"
 #include "spi_flash.h"
-#include "tsk_wifi.h"
 
 extern Serial_Device_t RS485_Device;
 extern Serial_Device_t UART_Device;
+
+
+
 /**
  * @brief 初始化应用任务
  */
@@ -47,16 +48,18 @@ void App_SerialRxTask(void *pvParameters);
 void App_ErrorLogTask(void *pvParameters);
 
 /**
- * @brief EEPROM 管理任务
- * @param pvParameters 任务参数
- */
-void App_EEPROMTask(void *pvParameters);
-
-/**
  * @brief WiFi 管理任务
- * @param pvParameters 任务参数（WiFi 设备实例）
+ * @param pvParameters 任务参数（未使用）
+ * @note 管理 WiFi 模块的初始化和 TCP 通信
  */
 void App_WifiTask(void *pvParameters);
+
+/**
+ * @brief BLE 管理任务
+ * @param pvParameters 任务参数（未使用）
+ * @note 管理 BLE 模块的初始化和数据通信
+ */
+void App_BLETask(void *pvParameters);
 
 /**
  * @brief CAN 管理任务
@@ -69,13 +72,5 @@ void App_CANTask(void *pvParameters);
  * @param pvParameters 任务参数（SPI Flash 设备实例）
  */
 void App_SPIFlashTask(void *pvParameters);
-
-/**
- * @brief 初始化 WiFi 任务
- * @param device WiFi 设备实例
- * @param serial_dev 串口设备实例
- * @return AT_Error_Code 操作状态
- */
-AT_Error_Code WiFi_TaskInit(WiFi_Device_t *device, Serial_Device_t *serial_dev);
 
 #endif /* __APP_TASKS_H */

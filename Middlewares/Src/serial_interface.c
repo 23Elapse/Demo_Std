@@ -11,9 +11,6 @@ static uint8_t expected_length = 0;
 
 static Serial_Status Serial_ErrorLog_Init(void)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-        return SERIAL_ERR_INIT;
     if (RingBuffer_Init(&error_log_buffer, 16, sizeof(Serial_ErrorLog_t)) != RB_OK)
     {
         return SERIAL_ERR_INIT;
@@ -23,29 +20,21 @@ static Serial_Status Serial_ErrorLog_Init(void)
 
 static void Serial_LogError(Serial_ErrorType_t type, USART_TypeDef *instance)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-        return;
-
     Serial_ErrorLog_t log = {
         .type = type,
-        .timestamp = rtos_ops->GetTickCount(),
+        .timestamp = g_rtos_ops->GetTickCount(),
         .instance = instance};
     RingBuffer_Write(&error_log_buffer, &log);
 }
 
 Serial_Status Serial_GetErrorLog(Serial_ErrorLog_t *log, uint32_t timeout)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !log)
-        return SERIAL_ERR_INIT;
-
-    if (rtos_ops->SemaphoreTake(error_log_buffer.sem, timeout))
+    if (g_rtos_ops->SemaphoreTake(error_log_buffer.sem, timeout))
     {
         RB_Status rb_status = RingBuffer_Read(&error_log_buffer, log);
         if (rb_status != RB_OK)
         {
-            rtos_ops->SemaphoreGive(error_log_buffer.sem);
+            g_rtos_ops->SemaphoreGive(error_log_buffer.sem);
             return (rb_status == RB_ERROR_BUFFER_EMPTY) ? SERIAL_ERR_NO_DATA : SERIAL_ERR_BUFFER_FULL;
         }
         return SERIAL_OK;
@@ -102,10 +91,6 @@ static Serial_Status RS485_FrameToBytes(RS485_Frame_t *frame, uint8_t *bytes, ui
 
 static Serial_Status Serial_Init(Serial_Device_t *dev)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !dev)
-        return SERIAL_ERR_INIT;
-
     static uint8_t log_initialized = 0;
     if (!log_initialized)
     {
@@ -151,17 +136,16 @@ static Serial_Status Serial_SendFrame(Serial_Device_t *dev, RS485_Frame_t *frame
 
 static Serial_Status Serial_ReceiveFromBuffer(Serial_Device_t *dev, Protocol_Data_t *data, uint32_t timeout)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !dev || !data)
+    if (!dev || !data)
         return SERIAL_ERR_INIT;
 
     uint8_t byte;
-    if (rtos_ops->SemaphoreTake(dev->rx_buffer.sem, timeout))
+    if (g_rtos_ops->SemaphoreTake(dev->rx_buffer.sem, timeout))
     {
         RB_Status rb_status = RingBuffer_Read(&dev->rx_buffer, &byte);
         if (rb_status != RB_OK)
         {
-            rtos_ops->SemaphoreGive(dev->rx_buffer.sem);
+            g_rtos_ops->SemaphoreGive(dev->rx_buffer.sem);
             return (rb_status == RB_ERROR_BUFFER_EMPTY) ? SERIAL_ERR_NO_DATA : SERIAL_ERR_BUFFER_FULL;
         }
 
@@ -202,8 +186,7 @@ static Serial_Status Serial_AddFrameToQueue(RS485_Frame_t *frame)
 
 static void Serial_PollSendRS485(Serial_Device_t *dev)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !dev || dev->mode != RS485_MODE || rs485_tx_queue.count == 0)
+    if (!dev || dev->mode != RS485_MODE || rs485_tx_queue.count == 0)
     {
         return;
     }
@@ -214,7 +197,7 @@ static void Serial_PollSendRS485(Serial_Device_t *dev)
     rs485_tx_queue.head = (rs485_tx_queue.head + 1) % RS485_TX_QUEUE_SIZE;
     rs485_tx_queue.count--;
 
-    rtos_ops->Delay(dev->silent_ticks);
+    g_rtos_ops->Delay(dev->silent_ticks);
 }
 
 const Serial_Ops_t Serial_Operations = {

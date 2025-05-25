@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-19 00:03:34
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 16:13:54
+ * @LastEditTime: 2025-05-25 16:39:29
  * @FilePath: \Demo\Drivers\BSP\Src\spi_flash.c
  * @Description: SPI Flash 驱动实现，支持 RTOS 抽象和优化
  *
@@ -104,13 +104,6 @@ static void send_address(SPI_Flash_Config *config, uint32_t addr)
  */
 static Flash_Status check_busy(SPI_Flash_Config *config)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid RTOS ops");
-        return FLASH_INVALID_PARAM;
-    }
-
     uint32_t timeout = FLASH_TIMEOUT_CNT / 100; // 每次检查 1/100 的总超时
     uint8_t retry = 3;
 
@@ -126,7 +119,7 @@ static Flash_Status check_busy(SPI_Flash_Config *config)
             return FLASH_OK;
         }
 
-        rtos_ops->Delay(10); // 10ms 延时，减少 CPU 占用
+        g_rtos_ops->Delay(10); // 10ms 延时，减少 CPU 占用
     } while (--retry && timeout--);
 
     Log_Message(LOG_LEVEL_ERROR, "[FLASH] Operation timeout");
@@ -138,13 +131,6 @@ static Flash_Status check_busy(SPI_Flash_Config *config)
  */
 static Flash_Status write_enable(SPI_Flash_Config *config)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid RTOS ops");
-        return FLASH_INVALID_PARAM;
-    }
-
     uint8_t retry = 3;
     do
     {
@@ -156,7 +142,7 @@ static Flash_Status write_enable(SPI_Flash_Config *config)
         {
             return FLASH_OK;
         }
-        rtos_ops->Delay(1);
+        g_rtos_ops->Delay(1);
     } while (--retry);
 
     Log_Message(LOG_LEVEL_ERROR, "[FLASH] Write enable failed");
@@ -230,16 +216,9 @@ Flash_Status SPI_Flash_Init(SPI_Flash_Config *config)
 
 Flash_Status W25Qxx_Init(SPI_Flash_Config *config)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !config)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid RTOS or config");
-        return FLASH_INVALID_PARAM;
-    }
-
     if (!config->mutex)
     {
-        config->mutex = rtos_ops->SemaphoreCreate();
+        config->mutex = g_rtos_ops->SemaphoreCreate();
         if (!config->mutex)
         {
             Log_Message(LOG_LEVEL_ERROR, "[FLASH] Failed to create mutex");
@@ -247,7 +226,7 @@ Flash_Status W25Qxx_Init(SPI_Flash_Config *config)
         }
     }
 
-    if (!rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Failed to take mutex");
         return FLASH_TIMEOUT;
@@ -257,7 +236,7 @@ Flash_Status W25Qxx_Init(SPI_Flash_Config *config)
     if (status != FLASH_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] SPI init failed: %d", status);
-        rtos_ops->SemaphoreGive(config->mutex);
+        g_rtos_ops->SemaphoreGive(config->mutex);
         return status;
     }
 
@@ -274,7 +253,7 @@ Flash_Status W25Qxx_Init(SPI_Flash_Config *config)
             if (status != FLASH_OK)
             {
                 Log_Message(LOG_LEVEL_ERROR, "[FLASH] Write enable failed: %d", status);
-                rtos_ops->SemaphoreGive(config->mutex);
+                g_rtos_ops->SemaphoreGive(config->mutex);
                 return status;
             }
             temp |= 1 << 1;
@@ -282,10 +261,10 @@ Flash_Status W25Qxx_Init(SPI_Flash_Config *config)
             if (status != FLASH_OK)
             {
                 Log_Message(LOG_LEVEL_ERROR, "[FLASH] Write status reg failed: %d", status);
-                rtos_ops->SemaphoreGive(config->mutex);
+                g_rtos_ops->SemaphoreGive(config->mutex);
                 return status;
             }
-            rtos_ops->Delay(20);
+            g_rtos_ops->Delay(20);
             config->hw_ops->cs_low(config->hw_context);
             SPI_Flash_Transfer(config, FLASH_Enable4ByteAddr);
             config->hw_ops->cs_high(config->hw_context);
@@ -293,7 +272,7 @@ Flash_Status W25Qxx_Init(SPI_Flash_Config *config)
     }
 
     Log_Message(LOG_LEVEL_INFO, "[FLASH] SPI Flash initialized successfully");
-    rtos_ops->SemaphoreGive(config->mutex);
+    g_rtos_ops->SemaphoreGive(config->mutex);
     return FLASH_OK;
 }
 
@@ -346,14 +325,7 @@ Flash_Status SPI_Flash_WriteStatusReg(SPI_Flash_Config *config, Flash_StatusReg 
 
 Flash_Status SPI_Flash_EraseSector(SPI_Flash_Config *config, uint32_t sectorAddr)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !config)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid RTOS or config");
-        return FLASH_INVALID_PARAM;
-    }
-
-    if (!rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Failed to take mutex");
         return FLASH_TIMEOUT;
@@ -363,7 +335,7 @@ Flash_Status SPI_Flash_EraseSector(SPI_Flash_Config *config, uint32_t sectorAddr
     if (status != FLASH_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Write enable failed: %d", status);
-        rtos_ops->SemaphoreGive(config->mutex);
+        g_rtos_ops->SemaphoreGive(config->mutex);
         return status;
     }
 
@@ -375,20 +347,13 @@ Flash_Status SPI_Flash_EraseSector(SPI_Flash_Config *config, uint32_t sectorAddr
     status = check_busy(config);
     Log_Message(status == FLASH_OK ? LOG_LEVEL_INFO : LOG_LEVEL_ERROR,
                 "[FLASH] Erase Sector 0x%08lX %s", sectorAddr, status == FLASH_OK ? "OK" : "FAIL");
-    rtos_ops->SemaphoreGive(config->mutex);
+    g_rtos_ops->SemaphoreGive(config->mutex);
     return status;
 }
 
 Flash_Status SPI_Flash_EraseChip(SPI_Flash_Config *config)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !config)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid RTOS or config");
-        return FLASH_INVALID_PARAM;
-    }
-
-    if (!rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Failed to take mutex");
         return FLASH_TIMEOUT;
@@ -398,7 +363,7 @@ Flash_Status SPI_Flash_EraseChip(SPI_Flash_Config *config)
     if (status != FLASH_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Write enable failed: %d", status);
-        rtos_ops->SemaphoreGive(config->mutex);
+        g_rtos_ops->SemaphoreGive(config->mutex);
         return status;
     }
 
@@ -409,20 +374,19 @@ Flash_Status SPI_Flash_EraseChip(SPI_Flash_Config *config)
     status = check_busy(config);
     Log_Message(status == FLASH_OK ? LOG_LEVEL_INFO : LOG_LEVEL_ERROR,
                 "[FLASH] Erase Chip %s", status == FLASH_OK ? "OK" : "FAIL");
-    rtos_ops->SemaphoreGive(config->mutex);
+    g_rtos_ops->SemaphoreGive(config->mutex);
     return status;
 }
 
 Flash_Status SPI_Flash_WritePage(SPI_Flash_Config *config, uint8_t *pBuffer, uint32_t writeAddr, uint16_t numByteToWrite)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !config || !pBuffer || numByteToWrite == 0 || numByteToWrite > PAGE_SIZE)
+    if (!config || !pBuffer || numByteToWrite == 0 || numByteToWrite > PAGE_SIZE)
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid parameters");
         return FLASH_INVALID_PARAM;
     }
 
-    if (!rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Failed to take mutex");
         return FLASH_TIMEOUT;
@@ -432,7 +396,7 @@ Flash_Status SPI_Flash_WritePage(SPI_Flash_Config *config, uint8_t *pBuffer, uin
     if (status != FLASH_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Write enable failed: %d", status);
-        rtos_ops->SemaphoreGive(config->mutex);
+        g_rtos_ops->SemaphoreGive(config->mutex);
         return status;
     }
 
@@ -448,20 +412,19 @@ Flash_Status SPI_Flash_WritePage(SPI_Flash_Config *config, uint8_t *pBuffer, uin
     status = check_busy(config);
     Log_Message(status == FLASH_OK ? LOG_LEVEL_INFO : LOG_LEVEL_ERROR,
                 "[FLASH] Write Page Addr:0x%08lX Len:%d %s", writeAddr, numByteToWrite, status == FLASH_OK ? "OK" : "FAIL");
-    rtos_ops->SemaphoreGive(config->mutex);
+    g_rtos_ops->SemaphoreGive(config->mutex);
     return status;
 }
 
 Flash_Status SPI_Flash_ReadData(SPI_Flash_Config *config, uint8_t *pBuffer, uint32_t readAddr, uint16_t numByteToRead)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !config || !pBuffer || numByteToRead == 0)
+    if (!config || !pBuffer || numByteToRead == 0)
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid parameters");
         return FLASH_INVALID_PARAM;
     }
 
-    if (!rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Failed to take mutex");
         return FLASH_TIMEOUT;
@@ -477,20 +440,19 @@ Flash_Status SPI_Flash_ReadData(SPI_Flash_Config *config, uint8_t *pBuffer, uint
     config->hw_ops->cs_high(config->hw_context);
 
     Log_Message(LOG_LEVEL_INFO, "[FLASH] Read Addr:0x%08lX Len:%d", readAddr, numByteToRead);
-    rtos_ops->SemaphoreGive(config->mutex);
+    g_rtos_ops->SemaphoreGive(config->mutex);
     return FLASH_OK;
 }
 
 Flash_Status SPI_Flash_FastReadData(SPI_Flash_Config *config, uint8_t *pBuffer, uint32_t readAddr, uint16_t numByteToRead)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !config || !pBuffer || numByteToRead == 0)
+    if (!config || !pBuffer || numByteToRead == 0)
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid parameters");
         return FLASH_INVALID_PARAM;
     }
 
-    if (!rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Failed to take mutex");
         return FLASH_TIMEOUT;
@@ -507,7 +469,7 @@ Flash_Status SPI_Flash_FastReadData(SPI_Flash_Config *config, uint8_t *pBuffer, 
     config->hw_ops->cs_high(config->hw_context);
 
     Log_Message(LOG_LEVEL_INFO, "[FLASH] Fast Read Addr:0x%08lX Len:%d", readAddr, numByteToRead);
-    rtos_ops->SemaphoreGive(config->mutex);
+    g_rtos_ops->SemaphoreGive(config->mutex);
     return FLASH_OK;
 }
 
@@ -539,14 +501,7 @@ int8_t SPI_Flash_Write_With_Erase(SPI_Flash_Config *config, uint8_t *pbuf, uint3
         return -1;
     }
 
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[FLASH] Invalid RTOS ops");
-        return -1;
-    }
-
-    if (!rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(config->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[FLASH] Failed to take mutex");
         return -1;
@@ -569,7 +524,7 @@ int8_t SPI_Flash_Write_With_Erase(SPI_Flash_Config *config, uint8_t *pbuf, uint3
         if (status != FLASH_OK)
         {
             Log_Message(LOG_LEVEL_ERROR, "[FLASH] Sector read failed: %d", status);
-            rtos_ops->SemaphoreGive(config->mutex);
+            g_rtos_ops->SemaphoreGive(config->mutex);
             return -1;
         }
 
@@ -580,7 +535,7 @@ int8_t SPI_Flash_Write_With_Erase(SPI_Flash_Config *config, uint8_t *pbuf, uint3
             if (status != FLASH_OK)
             {
                 Log_Message(LOG_LEVEL_ERROR, "[FLASH] Sector erase failed: %d", status);
-                rtos_ops->SemaphoreGive(config->mutex);
+                g_rtos_ops->SemaphoreGive(config->mutex);
                 return -1;
             }
 
@@ -597,7 +552,7 @@ int8_t SPI_Flash_Write_With_Erase(SPI_Flash_Config *config, uint8_t *pbuf, uint3
                 if (status != FLASH_OK)
                 {
                     Log_Message(LOG_LEVEL_ERROR, "[FLASH] Page write failed: %d", status);
-                    rtos_ops->SemaphoreGive(config->mutex);
+                    g_rtos_ops->SemaphoreGive(config->mutex);
                     return -1;
                 }
                 write_addr += write_len;
@@ -608,6 +563,6 @@ int8_t SPI_Flash_Write_With_Erase(SPI_Flash_Config *config, uint8_t *pbuf, uint3
     }
 
     Log_Message(LOG_LEVEL_INFO, "[FLASH] Write with erase completed successfully");
-    rtos_ops->SemaphoreGive(config->mutex);
+    g_rtos_ops->SemaphoreGive(config->mutex);
     return 0;
 }

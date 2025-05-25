@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-18 20:46:08
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-05 00:59:33
- * @FilePath: \Demo\Middlewares\Src\api_eeprom.c
+ * @LastEditTime: 2025-05-25 17:07:44
+ * @FilePath: \Demo\Application\Src\api_eeprom.c
  * @Description: EEPROM 驱动实现
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -25,14 +25,14 @@ const IIC_Ops_t IIC1_EEPROM = {
  */
 IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !val)
+
+    if (!g_rtos_ops || !val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Invalid RTOS ops or pointer");
         return IIC_ERR_INIT;
     }
 
-    if (!rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
+    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to take mutex, timeout after 100ms");
         return IIC_ERR_TIMEOUT;
@@ -43,7 +43,7 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     if (status != IIC_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send start signal: %d", status);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -53,7 +53,7 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
     status = IIC_WriteByte(instance_id, reg >> 8);
@@ -61,7 +61,7 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write high address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 #else
@@ -71,7 +71,7 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 #endif
@@ -81,7 +81,7 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -90,7 +90,7 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send repeated start: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -99,7 +99,7 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write read mode address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -108,12 +108,12 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to read byte: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
     IIC_Stop(instance_id);
-    rtos_ops->SemaphoreGive(IIC1_config.mutex);
+    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
     Log_Message(LOG_LEVEL_INFO, "[EEPROM] Read byte from reg 0x%02X: 0x%02X", reg, *val);
     return IIC_OK;
 }
@@ -126,14 +126,13 @@ IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
  */
 IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
+    if (!g_rtos_ops)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Invalid RTOS ops");
         return IIC_ERR_INIT;
     }
 
-    if (!rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
+    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to take mutex, timeout after 100ms");
         return IIC_ERR_TIMEOUT;
@@ -144,7 +143,7 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
     if (status != IIC_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send start signal: %d", status);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -154,7 +153,7 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
     status = IIC_WriteByte(instance_id, reg >> 8);
@@ -162,7 +161,7 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write high address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 #else
@@ -172,7 +171,7 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 #endif
@@ -182,7 +181,7 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -191,7 +190,7 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write byte: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -200,11 +199,11 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
     if (status != IIC_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Write operation timeout: %d", status);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
-    rtos_ops->SemaphoreGive(IIC1_config.mutex);
+    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
     Log_Message(LOG_LEVEL_INFO, "[EEPROM] Wrote byte 0x%02X to reg 0x%02X", val, reg);
     return IIC_OK;
 }
@@ -218,14 +217,13 @@ IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
  */
 IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !buffer || length == 0 || (reg + length - 1) > EE_TYPE)
+    if (!g_rtos_ops || !buffer || length == 0 || (reg + length - 1) > EE_TYPE)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Invalid parameters or address overflow");
         return IIC_ERR_INIT;
     }
 
-    if (!rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
+    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to take mutex, timeout after 100ms");
         return IIC_ERR_TIMEOUT;
@@ -236,7 +234,7 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
     if (status != IIC_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send start signal: %d", status);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -246,7 +244,7 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
     status = IIC_WriteByte(instance_id, reg >> 8);
@@ -254,7 +252,7 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write high address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 #else
@@ -264,7 +262,7 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 #endif
@@ -274,7 +272,7 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d ,line is %d", status, __LINE__);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -283,7 +281,7 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send repeated start: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -292,7 +290,7 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write read mode address: %d", status);
         IIC_Stop(instance_id);
-        rtos_ops->SemaphoreGive(IIC1_config.mutex);
+        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
         return status;
     }
 
@@ -303,13 +301,13 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
         {
             Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to read byte %d: %d", i, status);
             IIC_Stop(instance_id);
-            rtos_ops->SemaphoreGive(IIC1_config.mutex);
+            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
             return status;
         }
     }
 
     IIC_Stop(instance_id);
-    rtos_ops->SemaphoreGive(IIC1_config.mutex);
+    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
     Log_Message(LOG_LEVEL_INFO, "[EEPROM] Read %d bytes from reg 0x%02X", length, reg);
     return IIC_OK;
 }
@@ -323,14 +321,13 @@ IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
  */
 IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t length)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !buffer || length == 0 || (reg + length - 1) > EE_TYPE)
+    if (!g_rtos_ops || !buffer || length == 0 || (reg + length - 1) > EE_TYPE)
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Invalid parameters or address overflow");
         return IIC_ERR_INIT;
     }
 
-    if (!rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
+    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
     {
         Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to take mutex, timeout after 100ms");
         return IIC_ERR_TIMEOUT;
@@ -349,7 +346,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
         if (status != IIC_OK)
         {
             Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send start signal: %d", status);
-            rtos_ops->SemaphoreGive(IIC1_config.mutex);
+            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
             return status;
         }
 
@@ -359,7 +356,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
         {
             Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
             IIC_Stop(instance_id);
-            rtos_ops->SemaphoreGive(IIC1_config.mutex);
+            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
             return status;
         }
         status = IIC_WriteByte(instance_id, reg >> 8);
@@ -367,7 +364,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
         {
             Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write high address: %d", status);
             IIC_Stop(instance_id);
-            rtos_ops->SemaphoreGive(IIC1_config.mutex);
+            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
             return status;
         }
 #else
@@ -377,7 +374,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
         {
             Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
             IIC_Stop(instance_id);
-            rtos_ops->SemaphoreGive(IIC1_config.mutex);
+            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
             return status;
         }
 #endif
@@ -387,7 +384,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
         {
             Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
             IIC_Stop(instance_id);
-            rtos_ops->SemaphoreGive(IIC1_config.mutex);
+            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
             return status;
         }
 
@@ -398,7 +395,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
             {
                 Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write byte %d: %d", bytes_written + i, status);
                 IIC_Stop(instance_id);
-                rtos_ops->SemaphoreGive(IIC1_config.mutex);
+                g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
                 return status;
             }
         }
@@ -408,7 +405,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
         if (status != IIC_OK)
         {
             Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Write operation timeout: %d", status);
-            rtos_ops->SemaphoreGive(IIC1_config.mutex);
+            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
             return status;
         }
 
@@ -416,7 +413,7 @@ IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t le
         reg += bytes_to_write;
     }
 
-    rtos_ops->SemaphoreGive(IIC1_config.mutex);
+    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
     Log_Message(LOG_LEVEL_INFO, "[EEPROM] Wrote %d bytes to reg 0x%02X", length, reg - length);
     return IIC_OK;
 }

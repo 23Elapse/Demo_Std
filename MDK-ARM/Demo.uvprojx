@@ -405,11 +405,6 @@
               <FileType>1</FileType>
               <FilePath>..\Application\Src\tsk_eeprom.c</FilePath>
             </File>
-            <File>
-              <FileName>tsk_wifi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Application\Src\tsk_wifi.c</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
@@ -554,16 +549,6 @@
               <FileName>rtos_abstraction.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Middlewares\Src\rtos_abstraction.c</FilePath>
-            </File>
-            <File>
-              <FileName>rtos_freertos_impl.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\rtos_freertos_impl.c</FilePath>
-            </File>
-            <File>
-              <FileName>rtos_rtthread_impl.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\rtos_rtthread_impl.c</FilePath>
             </File>
             <File>
               <FileName>serial_interface.c</FileName>

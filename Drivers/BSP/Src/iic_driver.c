@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-03-26 20:19:40
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-13 01:37:56
+ * @LastEditTime: 2025-05-25 16:42:02
  * @FilePath: \Demo\Drivers\BSP\Src\iic_driver.c
  * @Description: IIC 驱动实现，支持 RTOS 抽象
  *
@@ -62,8 +62,7 @@ static void _sda_config(IIC_Config_t *IICx)
  */
 IIC_Status IICx_Init(IIC_Config_t *IICx)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !IICx || !IICx->scl_port || !IICx->sda_port)
+    if (!g_rtos_ops || !IICx || !IICx->scl_port || !IICx->sda_port)
     {
         printf("[IIC%d] Invalid RTOS or config\n", IICx->instance_id);
         return IIC_ERR_INIT;
@@ -71,7 +70,7 @@ IIC_Status IICx_Init(IIC_Config_t *IICx)
 
     if (IICx->mutex == NULL)
     {
-        IICx->mutex = rtos_ops->SemaphoreCreate();
+        IICx->mutex = g_rtos_ops->SemaphoreCreate();
         if (IICx->mutex == NULL)
         {
             printf("[IIC%d] Failed to create mutex\n", IICx->instance_id);
@@ -96,14 +95,13 @@ IIC_Status IICx_Init(IIC_Config_t *IICx)
  */
 IIC_Status IIC_ResetBus(IIC_Config_t *IICx)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !IICx)
+    if (!g_rtos_ops || !IICx)
     {
         printf("[IIC%d] Invalid RTOS or config\n", IICx ? IICx->instance_id : 0);
         return IIC_ERR_INIT;
     }
 
-    if (!rtos_ops->SemaphoreTake(IICx->mutex, 100))
+    if (!g_rtos_ops->SemaphoreTake(IICx->mutex, 100))
     {
         printf("[IIC%d] Failed to take mutex, timeout after 100ms\n", IICx->instance_id);
         return IIC_ERR_TIMEOUT;
@@ -123,7 +121,7 @@ IIC_Status IIC_ResetBus(IIC_Config_t *IICx)
     Common_GPIO_Init(IICx->scl_port, IICx->scl_pin, GPIO_Mode_OUT,
                      GPIO_OType_OD, GPIO_PuPd_NOPULL, GPIO_Speed_50MHz, 0);
 
-    rtos_ops->SemaphoreGive(IICx->mutex);
+    g_rtos_ops->SemaphoreGive(IICx->mutex);
     return IIC_OK;
 }
 
@@ -252,14 +250,7 @@ IIC_Status IIC_WriteByte(uint8_t instance_id, uint8_t data)
  */
 IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-    {
-        printf("[IIC%d] RTOS ops not initialized\n", instance_id);
-        return IIC_ERR_INIT;
-    }
-
-    rtos_ops->Delay(3);
+    g_rtos_ops->Delay(3);
     uint16_t timeout = I2C_TIMEOUT;
     while (timeout--)
     {
@@ -270,7 +261,7 @@ IIC_Status IIC_WaitWriteComplete(uint8_t instance_id, uint8_t dev_addr)
             return IIC_OK;
         }
         IIC_Stop(instance_id);
-        rtos_ops->Delay(1);
+        g_rtos_ops->Delay(1);
     }
 
     printf("[IIC%d] Write timeout\n", instance_id);
@@ -321,8 +312,7 @@ IIC_Status IIC_AttachDevice(IIC_Config_t *IICx, IIC_Ops_t *device)
  */
 uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !IICx || !IICx->scl_port || !IICx->sda_port || !i2c_dev)
+    if (!g_rtos_ops || !IICx || !IICx->scl_port || !IICx->sda_port || !i2c_dev)
     {
         printf("[IIC%d] Invalid config, device, or RTOS ops\n", IICx ? IICx->instance_id : 0);
         return 1;
@@ -335,14 +325,14 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         if (status != IIC_OK)
         {
             printf("[IIC%d] Failed to read EEPROM (addr 0x%02X): %d\n", IICx->instance_id, i2c_dev->dev_addr, status);
-            rtos_ops->SemaphoreGive(IICx->mutex);
+            g_rtos_ops->SemaphoreGive(IICx->mutex);
             return 1;
         }
 
         if (temp == 0x66)
         {
             printf("[IIC%d] EEPROM already initialized (addr 0x%02X)\n", IICx->instance_id, i2c_dev->dev_addr);
-            rtos_ops->SemaphoreGive(IICx->mutex);
+            g_rtos_ops->SemaphoreGive(IICx->mutex);
             return 0;
         }
 
@@ -350,12 +340,12 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         if (status != IIC_OK)
         {
             printf("[IIC%d] Failed to write EEPROM (addr 0x%02X): %d\n", IICx->instance_id, i2c_dev->dev_addr, status);
-            rtos_ops->SemaphoreGive(IICx->mutex);
+            g_rtos_ops->SemaphoreGive(IICx->mutex);
             return 1;
         }
 
         status = i2c_dev->ReadByte(EEPROM_TYPE, &temp);
-        rtos_ops->SemaphoreGive(IICx->mutex);
+        g_rtos_ops->SemaphoreGive(IICx->mutex);
         return (temp == 0x55) ? 0 : 1;
     }
     else if (PCF8574_ADDR == i2c_dev->dev_addr)
@@ -366,16 +356,16 @@ uint8_t IIC_Check(IIC_Config_t *IICx, const IIC_Ops_t *i2c_dev)
         if (status != IIC_OK)
         {
             printf("[IIC%d] Failed to write PCF8574 (addr 0x%02X): %d\n", IICx->instance_id, i2c_dev->dev_addr, status);
-            rtos_ops->SemaphoreGive(IICx->mutex);
+            g_rtos_ops->SemaphoreGive(IICx->mutex);
             return 1;
         }
         // status = IIC_WriteByte(IICx->instance_id, 0xFF);
-        rtos_ops->SemaphoreGive(IICx->mutex);
+        g_rtos_ops->SemaphoreGive(IICx->mutex);
         return (status == IIC_OK) ? 0 : 1;
     }
 
     printf("[IIC%d] Unsupported device address: 0x%02X\n", IICx->instance_id, i2c_dev->dev_addr);
-    rtos_ops->SemaphoreGive(IICx->mutex);
+    g_rtos_ops->SemaphoreGive(IICx->mutex);
     return 1;
 }
 

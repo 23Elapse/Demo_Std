@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-04 17:00:00
- * @FilePath: \Demo\Drivers\BSP\Src\device_manager.c
+ * @LastEditTime: 2025-05-25 17:10:32
+ * @FilePath: \Demo\Middlewares\Src\device_manager.c
  * @Description: 设备管理器实现
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -26,8 +26,7 @@
  */
 void DeviceManager_Init(Device_Manager_t *mgr, Device_Handle_t *device_array, uint8_t max_size)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !mgr || !device_array || max_size == 0)
+    if (!g_rtos_ops || !mgr || !device_array || max_size == 0)
     {
         Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Invalid parameters");
         return;
@@ -36,7 +35,7 @@ void DeviceManager_Init(Device_Manager_t *mgr, Device_Handle_t *device_array, ui
     mgr->devices = device_array;
     mgr->max_devices = max_size;
     mgr->count = 0;
-    mgr->mutex = rtos_ops->SemaphoreCreate();
+    mgr->mutex = g_rtos_ops->SemaphoreCreate();
     if (!mgr->mutex)
     {
         Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Failed to create mutex");
@@ -63,14 +62,13 @@ void DeviceManager_Init(Device_Manager_t *mgr, Device_Handle_t *device_array, ui
  */
 Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, const void *device, Device_Type_t type, uint8_t id)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !mgr || !device || mgr->count >= mgr->max_devices)
+    if (!g_rtos_ops || !mgr || !device || mgr->count >= mgr->max_devices)
     {
         Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Invalid device or max devices reached");
         return NULL;
     }
 
-    if (!rtos_ops->SemaphoreTake(mgr->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(mgr->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Failed to take mutex");
         return NULL;
@@ -86,12 +84,12 @@ Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, const void *devic
             mgr->devices[i].status = DEVICE_STATUS_NOT_INITIALIZED;
             mgr->count++;
             Log_Message(LOG_LEVEL_INFO, "[DeviceMgr] Registered device type %d, ID %d", type, id);
-            rtos_ops->SemaphoreGive(mgr->mutex);
+            g_rtos_ops->SemaphoreGive(mgr->mutex);
             return &mgr->devices[i];
         }
     }
     Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] No free slots available");
-    rtos_ops->SemaphoreGive(mgr->mutex);
+    g_rtos_ops->SemaphoreGive(mgr->mutex);
     return NULL;
 }
 
@@ -104,14 +102,13 @@ Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, const void *devic
  */
 Device_Handle_t *DeviceManager_Find(Device_Manager_t *mgr, Device_Type_t type, uint8_t id)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !mgr)
+    if (!g_rtos_ops || !mgr)
     {
         Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Invalid manager");
         return NULL;
     }
 
-    if (!rtos_ops->SemaphoreTake(mgr->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(mgr->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Failed to take mutex");
         return NULL;
@@ -123,12 +120,12 @@ Device_Handle_t *DeviceManager_Find(Device_Manager_t *mgr, Device_Type_t type, u
             mgr->devices[i].type == type &&
             mgr->devices[i].id == id)
         {
-            rtos_ops->SemaphoreGive(mgr->mutex);
+            g_rtos_ops->SemaphoreGive(mgr->mutex);
             return &mgr->devices[i];
         }
     }
     Log_Message(LOG_LEVEL_WARNING, "[DeviceMgr] Device not found: type %d, ID %d", type, id);
-    rtos_ops->SemaphoreGive(mgr->mutex);
+    g_rtos_ops->SemaphoreGive(mgr->mutex);
     return NULL;
 }
 
@@ -139,14 +136,13 @@ Device_Handle_t *DeviceManager_Find(Device_Manager_t *mgr, Device_Type_t type, u
  */
 void DeviceManager_Unregister(Device_Manager_t *mgr, Device_Handle_t *handle)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !mgr || !handle)
+    if (!g_rtos_ops || !mgr || !handle)
     {
         Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Invalid parameters");
         return;
     }
 
-    if (!rtos_ops->SemaphoreTake(mgr->mutex, 0xFFFFFFFF))
+    if (!g_rtos_ops->SemaphoreTake(mgr->mutex, 0xFFFFFFFF))
     {
         Log_Message(LOG_LEVEL_ERROR, "[DeviceMgr] Failed to take mutex");
         return;
@@ -166,7 +162,7 @@ void DeviceManager_Unregister(Device_Manager_t *mgr, Device_Handle_t *handle)
             break;
         }
     }
-    rtos_ops->SemaphoreGive(mgr->mutex);
+    g_rtos_ops->SemaphoreGive(mgr->mutex);
 }
 
 /**
@@ -225,7 +221,7 @@ Device_Status_t DeviceManager_CheckStatus(Device_Handle_t *handle)
         }
         break;
     case DEVICE_TYPE_WIFI:
-        if (((WiFi_Device_t *)handle->device)->hw_context != NULL)
+        if (((WiFi_Device_t *)handle->device)->serial_dev != NULL)
         {
             handle->status = DEVICE_STATUS_OK;
         }

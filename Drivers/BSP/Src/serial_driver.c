@@ -72,9 +72,6 @@ static Serial_Status Serial_NVIC_Init(Serial_Device_t *dev)
 
 static Serial_Status Serial_RingBuffer_Init(Serial_Device_t *dev)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops)
-        return SERIAL_ERR_INIT;
     if (RingBuffer_Init(&dev->rx_buffer, 16, sizeof(uint8_t)) != RB_OK)
     {
         return SERIAL_ERR_INIT;
@@ -84,8 +81,7 @@ static Serial_Status Serial_RingBuffer_Init(Serial_Device_t *dev)
 
 Serial_Status Serial_Driver_Init(Serial_Device_t *dev)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !dev || !dev->instance || serial_device_count >= 4)
+    if (!dev || !dev->instance || serial_device_count >= 4)
     {
         return SERIAL_ERR_INIT;
     }
@@ -129,8 +125,7 @@ Serial_Status Serial_Driver_Init(Serial_Device_t *dev)
 
 Serial_Status Serial_Driver_Deinit(Serial_Device_t *dev)
 {
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (!rtos_ops || !dev)
+    if (!g_rtos_ops || !dev)
         return SERIAL_ERR_INIT;
 
     if (dev->instance)
@@ -230,9 +225,8 @@ void Serial_Driver_IRQHandler(Serial_Device_t *dev)
         RingBuffer_WriteFromISR(&dev->rx_buffer, &byte, xHigherPriorityTaskWoken);
     }
 
-    const RTOS_Ops_t *rtos_ops = RTOS_GetOps();
-    if (rtos_ops)
+    if (g_rtos_ops)
     {
-        rtos_ops->YieldFromISR(xHigherPriorityTaskWoken);
+        g_rtos_ops->YieldFromISR(xHigherPriorityTaskWoken);
     }
 }
