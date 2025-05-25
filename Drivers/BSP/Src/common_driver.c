@@ -138,7 +138,7 @@ Common_Status Common_TIM_Init(TIM_TypeDef *instance, uint32_t period_us, uint8_t
     TIM_ITConfig(instance, TIM_IT_Update, ENABLE);
     NVIC_InitTypeDef nvic_init = {
         .NVIC_IRQChannel = irqn,
-        .NVIC_IRQChannelPreemptionPriority = 0,
+        .NVIC_IRQChannelPreemptionPriority = 5,
         .NVIC_IRQChannelSubPriority = 1,
         .NVIC_IRQChannelCmd = ENABLE};
     NVIC_Init(&nvic_init);

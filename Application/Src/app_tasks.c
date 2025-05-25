@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.comTriplett
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-13 01:30:03
- * @FilePath: \Demo\Drivers\BSP\Src\app_tasks.c
+ * @LastEditTime: 2025-05-25 15:10:57
+ * @FilePath: \Demo\Application\Src\app_tasks.c
  * @Description: 应用任务实现
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -55,16 +55,16 @@ Serial_Device_t UART_Device = {
     .rx_buffer = {0}};
 
 Serial_Device_t WiFi_Serial = {
-    .instance = USART3,
-    .tx_port = GPIOB,
-    .tx_pin = GPIO_Pin_10,
-    .rx_port = GPIOB,
-    .rx_pin = GPIO_Pin_11,
+    .instance = USART6,
+    .tx_port = GPIOC,
+    .tx_pin = GPIO_Pin_6,
+    .rx_port = GPIOC,
+    .rx_pin = GPIO_Pin_7,
     .de_port = NULL,
     .de_pin = 0,
     .baudrate = 115200,
-    .af = GPIO_AF_USART3,
-    .irqn = USART3_IRQn,
+    .af = GPIO_AF_USART6,
+    .irqn = USART6_IRQn,
     .mode = UART_MODE,
     .silent_ticks = 0,
     .rx_buffer = {0}};
@@ -317,7 +317,8 @@ void App_WifiTask(void *pvParameters)
     {
         // 查询 WiFi 状态
         WiFi_Status_t status = {0};
-        if (WiFi_QueryStatus(wifi_dev, &status) == AT_ERR_NONE)
+        AT_Error_Code status_code = WiFi_QueryStatus(wifi_dev, &status);
+        if (status_code == AT_ERR_NONE)
         {
             Log_Message(LOG_LEVEL_INFO, "[WiFi] Status: %s, SSID: %s, IP: %s",
                         status.connected ? "Connected" : "Not connected",
@@ -325,7 +326,7 @@ void App_WifiTask(void *pvParameters)
         }
         else
         {
-            Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to query status");
+            Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to query status is: %d, status_code: %d", status.connected, status_code);
         }
 
         // 查询信号强度
@@ -406,7 +407,16 @@ void App_CANTask(void *pvParameters)
         CAN_Message_t rx_msg;
         if (CAN_Operations.ReceiveMessage(can_dev, &rx_msg, 1000) == CAN_OK)
         {
-            Log_Message(LOG_LEVEL_INFO, "[CAN] Received message ID: 0x%03X, length: %d", rx_msg.id, rx_msg.length);
+            char data_str[3 * 8 + 1] = {0};  // 每字节两位十六进制 + 一个空格
+            for (int i = 0; i < rx_msg.length && i < 8; i++)
+            {
+                char byte_str[4];
+                snprintf(byte_str, sizeof(byte_str), "%02X ", rx_msg.data[i]);
+                strcat(data_str, byte_str);
+            }
+            Log_Message(LOG_LEVEL_INFO, "[CAN] Received ID: 0x%03X, len: %d, data: %s",
+                        rx_msg.id, rx_msg.length, data_str);
+            // Log_Message(LOG_LEVEL_ERROR, "[CAN] Received message ID: 0x%03X, length: %d", rx_msg.id, rx_msg.length);
         }
 
         const RTOS_Ops_t *rtos_ops = RTOS_GetOps();

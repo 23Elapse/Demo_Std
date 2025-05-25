@@ -45,7 +45,7 @@ void Log_Message(Log_Level_t level, const char *format, ...)
     va_end(args);
 
     Log_ToBuffer(level, buffer);
-    if (level >= LOG_LEVEL_WARNING)
+    if (level >= LOG_LEVEL_INFO)
     {
         printf("%s\n", buffer); // 输出到控制台，仅限警告和错误
     }

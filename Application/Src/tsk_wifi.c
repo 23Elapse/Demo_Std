@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-05-02 10:00:00
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-04 17:00:00
- * @FilePath: \Demo\Middlewares\Src\tsk_wifi.c
+ * @LastEditTime: 2025-05-25 12:19:59
+ * @FilePath: \Demo\Application\Src\tsk_wifi.c
  * @Description: WiFi 任务实现，基于 RTOS 抽象层
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -151,13 +151,16 @@ AT_Error_Code WiFi_TaskInit(WiFi_Device_t *device, Serial_Device_t *serial_dev)
         Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to create command queue");
         return AT_ERR_SEND_FAILED;
     }
-
-    void *task_handle = rtos_ops->TaskCreate(vWifiTask, "WiFiTask", WIFI_TASK_STACK_SIZE, device, 1);
-    if (!task_handle) {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to create WiFi task");
-        rtos_ops->DeleteQueue(cmdQueue);
+    if (WiFi_Init(device) != AT_ERR_NONE) {
+        Log_Message(LOG_LEVEL_ERROR, "[WiFi] Initialization failed");
         return AT_ERR_SEND_FAILED;
     }
+    // void *task_handle = rtos_ops->TaskCreate(vWifiTask, "WiFiTask", WIFI_TASK_STACK_SIZE, device, 1);
+    // if (!task_handle) {
+    //     Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to create WiFi task");
+    //     rtos_ops->DeleteQueue(cmdQueue);
+    //     return AT_ERR_SEND_FAILED;
+    // }
     rtos_ops->SemaphoreGive(IIC1_config.mutex);
     Log_Message(LOG_LEVEL_INFO, "[WiFi] Task and queue initialized");
     return AT_ERR_NONE;

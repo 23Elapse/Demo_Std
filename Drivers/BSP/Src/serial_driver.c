@@ -63,7 +63,7 @@ static Serial_Status Serial_NVIC_Init(Serial_Device_t *dev)
     USART_ITConfig(dev->instance, USART_IT_RXNE, ENABLE);
     NVIC_InitTypeDef nvic_init = {
         .NVIC_IRQChannel = dev->irqn,
-        .NVIC_IRQChannelPreemptionPriority = 0,
+        .NVIC_IRQChannelPreemptionPriority = 5,
         .NVIC_IRQChannelSubPriority = 0,
         .NVIC_IRQChannelCmd = ENABLE};
     NVIC_Init(&nvic_init);

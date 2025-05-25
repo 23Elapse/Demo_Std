@@ -68,7 +68,7 @@ extern uint32_t FreeRTOSRunTimeTicks;
 #define configUSE_TIMERS                                1                               /* 1: 使能软件定时器, 默认: 0 */
 #define configTIMER_TASK_PRIORITY                       ( configMAX_PRIORITIES - 1 )    /* 定义软件定时器任务的优先级, 无默认configUSE_TIMERS为1时需定义 */
 #define configTIMER_QUEUE_LENGTH                        5                               /* 定义软件定时器命令队列的长度, 无默认configUSE_TIMERS为1时需定义 */
-#define configTIMER_TASK_STACK_DEPTH                    ( configMINIMAL_STACK_SIZE * 2) /* 定义软件定时器任务的栈空间大小, 无默认configUSE_TIMERS为1时需定义 */
+#define configTIMER_TASK_STACK_DEPTH                    ( configMINIMAL_STACK_SIZE * 2 - 1) /* 定义软件定时器任务的栈空间大小, 无默认configUSE_TIMERS为1时需定义 */
 
 /* 可选函数, 1: 使能 */
 #define INCLUDE_vTaskPrioritySet                        1                       /* 设置任务优先级 */

@@ -23,7 +23,7 @@ void TIM6_Init(uint16_t arr, uint16_t psc) {
     // 4. 配置 NVIC
     NVIC_InitTypeDef NVIC_InitStruct;
     NVIC_InitStruct.NVIC_IRQChannel = TIM6_DAC_IRQn;  // TIM6 中断通道
-    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 0;  // 抢占优先级
+    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 5;  // 抢占优先级
     NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;         // 子优先级
     NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;            // 使能中断
     NVIC_Init(&NVIC_InitStruct);

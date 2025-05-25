@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-05-02 10:00:00
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-04 20:11:59
- * @FilePath: \Demo\Middlewares\Inc\tsk_wifi.h
+ * @LastEditTime: 2025-05-25 15:03:34
+ * @FilePath: \Demo\Application\Inc\tsk_wifi.h
  * @Description: WiFi 任务头文件，基于 RTOS 抽象层
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.

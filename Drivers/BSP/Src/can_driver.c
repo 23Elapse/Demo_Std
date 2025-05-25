@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 20:01:43
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 00:54:08
+ * @LastEditTime: 2025-05-24 16:35:44
  * @FilePath: \Demo\Drivers\BSP\Src\can_driver.c
  * @Description: CAN 驱动实现
  *
@@ -48,25 +48,25 @@ CAN_Status CANx_Init(CAN_Device_t *dev)
     else if (dev->instance == CAN2) RCC_APB1PeriphClockCmd(RCC_APB1Periph_CAN2, ENABLE);
 
     CAN_InitTypeDef can_init = {0};
-    can_init.CAN_Prescaler = 4; // 需根据实际时钟和波特率计算
-    can_init.CAN_Mode = CAN_Mode_Normal;
+    can_init.CAN_Prescaler = 3; // 需根据实际时钟和波特率计算
+    can_init.CAN_Mode = CAN_Mode_LoopBack;        //CAN_Mode_Normal
     can_init.CAN_SJW = CAN_SJW_1tq;
-    can_init.CAN_BS1 = CAN_BS1_6tq;
-    can_init.CAN_BS2 = CAN_BS2_5tq;
+    can_init.CAN_BS1 = CAN_BS1_10tq;
+    can_init.CAN_BS2 = CAN_BS2_4tq;
     can_init.CAN_TTCM = DISABLE;
-    can_init.CAN_ABOM = ENABLE;
+    can_init.CAN_ABOM = DISABLE;
     can_init.CAN_AWUM = DISABLE;
     can_init.CAN_NART = DISABLE;
     can_init.CAN_RFLM = DISABLE;
     can_init.CAN_TXFP = DISABLE;
     CAN_Init(dev->instance, &can_init);
-
+    
     CAN_FilterInitTypeDef filter_init = {0};
     filter_init.CAN_FilterNumber = 0;
     filter_init.CAN_FilterMode = CAN_FilterMode_IdMask;
     filter_init.CAN_FilterScale = CAN_FilterScale_32bit;
-    filter_init.CAN_FilterIdHigh = 0x0000;
-    filter_init.CAN_FilterIdLow = 0x0000;
+    filter_init.CAN_FilterIdHigh = 0x0000;              // extended ID >> 13 & 0xFFFF
+    filter_init.CAN_FilterIdLow = 0x0000;               // extended ID << 3 & 0xFFFF | IDE | RTR
     filter_init.CAN_FilterMaskIdHigh = 0x0000;
     filter_init.CAN_FilterMaskIdLow = 0x0000;
     filter_init.CAN_FilterFIFOAssignment = CAN_Filter_FIFO0;
@@ -76,7 +76,7 @@ CAN_Status CANx_Init(CAN_Device_t *dev)
     CAN_ITConfig(dev->instance, CAN_IT_FMP0, ENABLE);
     NVIC_InitTypeDef nvic_init = {
         .NVIC_IRQChannel = dev->irqn,
-        .NVIC_IRQChannelPreemptionPriority = 0,
+        .NVIC_IRQChannelPreemptionPriority = 5,
         .NVIC_IRQChannelSubPriority = 0,
         .NVIC_IRQChannelCmd = ENABLE
     };

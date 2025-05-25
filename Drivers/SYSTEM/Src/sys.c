@@ -176,7 +176,7 @@ uint8_t SystemClock_Config(uint32_t plln, uint32_t pllm, uint32_t pllp, uint32_t
   RCC_SYSCLKConfig(RCC_SYSCLKSource_PLLCLK);
   while (RCC_GetSYSCLKSource() != 0x08)
     ;
-  SystemCoreClockUpdate();  // 更新SystemCoreClock为当前SYSCLK值
+  SystemCoreClockUpdate(); // 更新SystemCoreClock为当前SYSCLK值
   return 0;
 }
 /*
