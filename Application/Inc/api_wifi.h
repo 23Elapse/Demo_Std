@@ -74,6 +74,12 @@ void atk_mb026_hw_init(void);
 void atk_mb026_hw_reset(void);
 
 /**
+ * @brief ESP32 串口中断处理函数
+ * @param byte 接收到的字节
+ */
+void ESP32_Serial_IRQHandler(uint8_t byte);
+
+/**
  * @brief 获取 WiFi 设备实例
  * @return WiFi_Device_t* WiFi 设备指针
  */

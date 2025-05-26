@@ -107,9 +107,23 @@ void USART2_IRQHandler(void)
     Serial_Driver_IRQHandler(&UART_Device);
 }
 
-void USART6_IRQHandler(void)
-{
-    Serial_Driver_IRQHandler(&ESP32_Serial);
+// void USART6_IRQHandler(void)
+// {
+//     Serial_Driver_IRQHandler(&ESP32_Serial);
+// }
+
+/* 修改 USART6 中断处理函数 */
+void USART6_IRQHandler(void) {
+    if (USART_GetITStatus(USART6, USART_IT_RXNE) != RESET) {
+        uint8_t data = USART_ReceiveData(USART6);
+        ESP32_Serial_IRQHandler(data); // 调用新的中断处理函数
+        USART_ClearITPendingBit(USART6, USART_IT_RXNE);
+    }
+    
+    // 错误标志处理
+    if (USART_GetITStatus(USART6, USART_IT_ORE | USART_IT_NE | USART_IT_FE | USART_IT_PE) != RESET) {
+        USART_ClearITPendingBit(USART6, USART_IT_ORE | USART_IT_NE | USART_IT_FE | USART_IT_PE);
+    }
 }
 
 void CAN1_RX0_IRQHandler(void)
