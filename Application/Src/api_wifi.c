@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:50:17
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-25 19:53:00
- * @FilePath: \Demo\Middlewares\Src\api_wifi.c
+ * @LastEditTime: 2025-05-26 19:00:39
+ * @FilePath: \Demo\Application\Src\api_wifi.c
  * @Description: WiFi 和 BLE 模块驱动实现
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -15,34 +15,42 @@
 #include <stdio.h>
 #include "pch.h"
 
-// 静态 WiFi 设备
-static WiFi_Device_t WiFi_Device = {0};
-
-// 静态 BLE 设备
-static BLE_Device_t BLE_Device = {0};
-
 /**
- * @brief 获取 WiFi 设备实例
+ * @brief       ATK_MB026硬件初始化
+ * @param       无
+ * @retval      无
  */
-WiFi_Device_t* WiFi_GetDevice(void)
+void atk_mb026_hw_init(void)
 {
-    return &WiFi_Device;
+    if (Common_GPIO_Init(GPIOA, GPIO_Pin_4, GPIO_Mode_OUT, GPIO_OType_PP, GPIO_PuPd_NOPULL, GPIO_Speed_50MHz, 0) != COMMON_OK)
+    {
+        Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to init GPIO");
+        return 1;
+    }
 }
-
+/* IO操作 */
+#define ATK_MB026_RST(x)                  do{ x ?                                                                                     \
+                                                GPIO_SetBits(GPIOA, GPIO_Pin_4) :  \
+                                                GPIO_ResetBits(GPIOA, GPIO_Pin_4); \
+                                            }while(0)
 /**
- * @brief 获取 BLE 设备实例
+ * @brief       ATK_MB026硬件复位
+ * @param       无
+ * @retval      无
  */
-BLE_Device_t* BLE_GetDevice(void)
+void atk_mb026_hw_reset(void)
 {
-    return &BLE_Device;
+    ATK_MB026_RST(0);
+    delay_ms(100);
+    ATK_MB026_RST(1);
+    delay_ms(500);
 }
-
 /**
  * @brief 发送 WiFi AT 指令
  */
 AT_Error_Code WiFi_SendATCommand(const AT_Cmd_Config *cmd)
 {
-    WiFi_Device_t *wifi_dev = WiFi_GetDevice();
+    WiFi_Device_t *wifi_dev = &WiFi_Device;
     if (!g_rtos_ops || !wifi_dev->serial_dev || !cmd || !cmd->at_cmd || !cmd->expected_resp)
     {
         Log_Message(LOG_LEVEL_ERROR, "[WiFi] Invalid parameters for AT command");
@@ -92,7 +100,7 @@ AT_Error_Code WiFi_SendATCommand(const AT_Cmd_Config *cmd)
         Log_Message(LOG_LEVEL_WARNING, "[WiFi] Timeout for command: %s, retry %d/%d", cmd->description, retry, cmd->retries);
     }
 
-    Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to receive expected response for %s", cmd->description);
+//    Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to receive expected response for %s", cmd->description);
     g_rtos_ops->SemaphoreGive(wifi_dev->mutex);
     return AT_ERR_TIMEOUT;
 }
@@ -102,7 +110,7 @@ AT_Error_Code WiFi_SendATCommand(const AT_Cmd_Config *cmd)
  */
 AT_Error_Code WiFi_SendTCPData(const uint8_t *data, uint16_t length)
 {
-    WiFi_Device_t *wifi_dev = WiFi_GetDevice();
+    WiFi_Device_t *wifi_dev = &WiFi_Device;
     if (!g_rtos_ops || !wifi_dev->serial_dev || !data || length == 0 || length > TCP_BUFFER_SIZE)
     {
         Log_Message(LOG_LEVEL_ERROR, "[WiFi] Invalid parameters for TCP send");
@@ -166,7 +174,7 @@ AT_Error_Code WiFi_SendTCPData(const uint8_t *data, uint16_t length)
  */
 AT_Error_Code WiFi_ReceiveTCPData(uint8_t *buffer, uint16_t *length, uint32_t timeout_ms)
 {
-    WiFi_Device_t *wifi_dev = WiFi_GetDevice();
+    WiFi_Device_t *wifi_dev = &WiFi_Device;
     if (!g_rtos_ops || !wifi_dev->serial_dev || !buffer || !length || *length == 0 || *length > TCP_BUFFER_SIZE)
     {
         Log_Message(LOG_LEVEL_ERROR, "[WiFi] Invalid parameters for TCP receive");
@@ -215,7 +223,7 @@ AT_Error_Code WiFi_ReceiveTCPData(uint8_t *buffer, uint16_t *length, uint32_t ti
  */
 AT_Error_Code BLE_SendATCommand(const AT_Cmd_Config *cmd)
 {
-    BLE_Device_t *ble_dev = BLE_GetDevice();
+    BLE_Device_t *ble_dev = &BLE_Device;
     if (!g_rtos_ops || !ble_dev->serial_dev || !cmd || !cmd->at_cmd || !cmd->expected_resp)
     {
         Log_Message(LOG_LEVEL_ERROR, "[BLE] Invalid parameters for AT command");
@@ -275,7 +283,7 @@ AT_Error_Code BLE_SendATCommand(const AT_Cmd_Config *cmd)
  */
 AT_Error_Code BLE_SendData(const uint8_t *data, uint16_t length)
 {
-    BLE_Device_t *ble_dev = BLE_GetDevice();
+    BLE_Device_t *ble_dev = &BLE_Device;
     if (!g_rtos_ops || !ble_dev->serial_dev || !data || length == 0 || length > TCP_BUFFER_SIZE)
     {
         Log_Message(LOG_LEVEL_ERROR, "[BLE] Invalid parameters for data send");
@@ -339,7 +347,7 @@ AT_Error_Code BLE_SendData(const uint8_t *data, uint16_t length)
  */
 AT_Error_Code BLE_ReceiveData(uint8_t *buffer, uint16_t *length, uint32_t timeout_ms)
 {
-    BLE_Device_t *ble_dev = BLE_GetDevice();
+    BLE_Device_t *ble_dev = &BLE_Device;
     if (!g_rtos_ops || !ble_dev->serial_dev || !buffer || !length || *length == 0 || length > TCP_BUFFER_SIZE)
     {
         Log_Message(LOG_LEVEL_ERROR, "[BLE] Invalid parameters for data receive");

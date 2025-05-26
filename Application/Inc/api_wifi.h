@@ -64,6 +64,16 @@ typedef struct {
 } BLE_Device_t;
 
 /**
+ * @brief 初始化 WiFi 和 BLE 硬件
+ */
+void atk_mb026_hw_init(void);
+
+/**
+ * @brief 硬件复位 WiFi/BLE 模块
+ */
+void atk_mb026_hw_reset(void);
+
+/**
  * @brief 获取 WiFi 设备实例
  * @return WiFi_Device_t* WiFi 设备指针
  */

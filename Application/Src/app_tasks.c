@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-25 19:06:59
+ * @LastEditTime: 2025-05-26 19:06:08
  * @FilePath: \Demo\Application\Src\app_tasks.c
  * @Description: 应用任务实现
  *
@@ -54,7 +54,7 @@ Serial_Device_t UART_Device = {
     .silent_ticks = 0,
     .rx_buffer = {0}};
 
-Serial_Device_t WiFi_Serial = {
+Serial_Device_t ESP32_Serial = {
     .instance = USART6,
     .tx_port = GPIOC,
     .tx_pin = GPIO_Pin_6,
@@ -83,7 +83,15 @@ CAN_Device_t CAN1_Device = {
 SPI_Flash_Device_t SPIFlash_Device = {
     .config = &flash_config,
     .id = 0};
-
+    
+WiFi_Device_t WiFi_Device = {
+    .serial_dev = &ESP32_Serial,
+    .mutex = NULL
+};
+BLE_Device_t BLE_Device = {
+    .serial_dev = &ESP32_Serial,
+    .mutex = NULL
+};
 // 设备管理器实例
 #define MAX_DEVICES 10
 static Device_Handle_t device_array[MAX_DEVICES];
@@ -101,7 +109,7 @@ void USART2_IRQHandler(void)
 
 void USART6_IRQHandler(void)
 {
-    Serial_Driver_IRQHandler(&WiFi_Serial);
+    Serial_Driver_IRQHandler(&ESP32_Serial);
 }
 
 void CAN1_RX0_IRQHandler(void)
@@ -128,13 +136,13 @@ void App_Init(void)
     // 注册设备
     DeviceManager_Register(&device_mgr, &RS485_Device, DEVICE_TYPE_SERIAL, 1);
     DeviceManager_Register(&device_mgr, &UART_Device, DEVICE_TYPE_SERIAL, 2);
-    DeviceManager_Register(&device_mgr, &WiFi_Serial, DEVICE_TYPE_SERIAL, 3);
+    DeviceManager_Register(&device_mgr, &ESP32_Serial, DEVICE_TYPE_SERIAL, 3);
     DeviceManager_Register(&device_mgr, &CAN1_Device, DEVICE_TYPE_CAN, 1);
     DeviceManager_Register(&device_mgr, &IIC1_EEPROM, DEVICE_TYPE_EEPROM, 1);
     DeviceManager_Register(&device_mgr, &IIC1_PCF8574, DEVICE_TYPE_PCF8574, 1);
     DeviceManager_Register(&device_mgr, &SPIFlash_Device, DEVICE_TYPE_SPI_FLASH, 1);
-    DeviceManager_Register(&device_mgr, WiFi_GetDevice(), DEVICE_TYPE_WIFI, 1);
-    DeviceManager_Register(&device_mgr, BLE_GetDevice(), DEVICE_TYPE_BLE, 1);
+    DeviceManager_Register(&device_mgr, &WiFi_Device, DEVICE_TYPE_WIFI, 1);
+    DeviceManager_Register(&device_mgr, &BLE_Device, DEVICE_TYPE_BLE, 1);
 
     // 初始化 IIC 设备（PCF8574 和 EEPROM）
     IIC_INIT();
@@ -158,18 +166,9 @@ void App_Init(void)
     {
         Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init UART");
     }
-    if (wifi_serial_handle && (wifi_handle || ble_handle))
+    if (wifi_serial_handle && Serial_Operations.Init((Serial_Device_t *)wifi_serial_handle->device) != SERIAL_OK)
     {
-        // 初始化 WiFi/BLE 共用串口
-        if (Serial_Driver_Init(&WiFi_Serial) != SERIAL_OK)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init WiFi/BLE serial");
-        }
-        else
-        {
-            WiFi_GetDevice()->serial_dev = &WiFi_Serial;
-            BLE_GetDevice()->serial_dev = &WiFi_Serial;
-        }
+        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init WiFi serial");
     }
     if (can_handle && CAN_Operations.Init((CAN_Device_t *)can_handle->device) != CAN_OK)
     {
@@ -281,15 +280,9 @@ void App_ErrorLogTask(void *pvParameters)
  */
 void App_WifiTask(void *pvParameters)
 {
-    if (!g_rtos_ops || !WiFi_GetDevice()->serial_dev)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi] Invalid RTOS ops or serial device");
-        if (g_rtos_ops)
-            g_rtos_ops->TaskDelete(NULL);
-        return;
-    }
-
-    WiFi_Device_t *wifi_dev = WiFi_GetDevice();
+    WiFi_Device_t *wifi_dev = &WiFi_Device;
+    atk_mb026_hw_init();
+    atk_mb026_hw_reset();
     static uint8_t is_initialized = 0;
     uint8_t retry_count = 0;
     const uint8_t max_retries = 3;
@@ -342,6 +335,7 @@ void App_WifiTask(void *pvParameters)
                     Log_Message(LOG_LEVEL_ERROR, "[WiFi] Max retries reached, suspending task");
                     g_rtos_ops->Task_Suspend(NULL);
                 }
+                atk_mb026_hw_reset();
                 Log_Message(LOG_LEVEL_WARNING, "[WiFi] Init failed, retry %d/%d", retry_count, max_retries);
                 g_rtos_ops->Delay(5000);
                 continue;
@@ -398,15 +392,10 @@ void App_WifiTask(void *pvParameters)
  */
 void App_BLETask(void *pvParameters)
 {
-    if (!g_rtos_ops || !BLE_GetDevice()->serial_dev)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE] Invalid RTOS ops or serial device");
-        if (g_rtos_ops)
-            g_rtos_ops->TaskDelete(NULL);
-        return;
-    }
+    BLE_Device_t *ble_dev = &BLE_Device;
+    atk_mb026_hw_init();
+    atk_mb026_hw_reset();   
 
-    BLE_Device_t *ble_dev = BLE_GetDevice();
     static uint8_t is_initialized = 0;
     uint8_t retry_count = 0;
     const uint8_t max_retries = 3;

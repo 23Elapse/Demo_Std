@@ -21,6 +21,12 @@
 
 extern Serial_Device_t RS485_Device;
 extern Serial_Device_t UART_Device;
+extern WiFi_Device_t WiFi_Device;
+extern BLE_Device_t BLE_Device;
+extern void USART1_IRQHandler(void);
+extern void USART2_IRQHandler(void);
+extern void USART6_IRQHandler(void);
+extern void CAN1_RX0_IRQHandler(void);
 
 
 

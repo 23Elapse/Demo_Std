@@ -84,6 +84,7 @@
 #include "api_eeprom.h"
 #include "rtos_abstraction.h"
 #include "can_driver.h"
+#include "app_tasks.h"
 
 
 
