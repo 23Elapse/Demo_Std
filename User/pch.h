@@ -69,7 +69,6 @@
 #include "iic_core.h"
 //#include "my_rs485.h"
 #include "pcf8574.h"
-#include "freertos_demo.h"
 #include "queue.h"
 #include "api_wifi.h"
 #include "semphr.h"

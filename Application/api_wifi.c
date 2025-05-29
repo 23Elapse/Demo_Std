@@ -25,7 +25,6 @@ void atk_mb026_hw_init(void)
     if (Common_GPIO_Init(GPIOA, GPIO_Pin_4, GPIO_Mode_OUT, GPIO_OType_PP, GPIO_PuPd_NOPULL, GPIO_Speed_50MHz, 0) != COMMON_OK)
     {
         Log_Message(LOG_LEVEL_ERROR, "[PCF8574] Failed to init GPIO");
-        return 1;
     }
 }
 /* IO操作 */

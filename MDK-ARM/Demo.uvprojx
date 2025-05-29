@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F429_439xx,</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Drivers\BSP\Inc;..\Drivers\CMSIS\Device\ST\STM32F4xx\Include;..\Drivers\CMSIS\Include;..\Drivers\STM32F4xx_StdPeriph_Driver\inc;..\Drivers\SYSTEM\Inc;..\User;..\Middlewares\FreeRTOS\include;..\Middlewares\FreeRTOS;..\Middlewares\FreeRTOS\portable\RVDS\ARM_CM4F;..\Middlewares\Inc;..\Application\Inc</IncludePath>
+              <IncludePath>..\Drivers\BSP;..\Drivers\CMSIS\Device\ST\STM32F4xx\Include;..\Drivers\CMSIS\Include;..\Drivers\STM32F4xx_StdPeriph_Driver\inc;..\Drivers\SYSTEM\Inc;..\User;..\Application;..\Middlewares;..\FreeRTOS\include;..\FreeRTOS\portable\RVDS\ARM_CM4F;..\FreeRTOS</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -388,22 +388,22 @@
             <File>
               <FileName>api_eeprom.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Application\Src\api_eeprom.c</FilePath>
+              <FilePath>..\Application\api_eeprom.c</FilePath>
             </File>
             <File>
               <FileName>api_wifi.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Application\Src\api_wifi.c</FilePath>
+              <FilePath>..\Application\api_wifi.c</FilePath>
             </File>
             <File>
               <FileName>app_tasks.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Application\Src\app_tasks.c</FilePath>
+              <FilePath>..\Application\app_tasks.c</FilePath>
             </File>
             <File>
               <FileName>tsk_eeprom.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Application\Src\tsk_eeprom.c</FilePath>
+              <FilePath>..\Application\tsk_eeprom.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -430,11 +430,6 @@
               <FileType>5</FileType>
               <FilePath>..\User\FreeRTOSConfig.h</FilePath>
             </File>
-            <File>
-              <FileName>freertos_demo.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\freertos_demo.c</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
@@ -443,62 +438,62 @@
             <File>
               <FileName>btim.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\btim.c</FilePath>
+              <FilePath>..\Drivers\BSP\btim.c</FilePath>
             </File>
             <File>
               <FileName>can_driver.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\can_driver.c</FilePath>
+              <FilePath>..\Drivers\BSP\can_driver.c</FilePath>
             </File>
             <File>
               <FileName>common_driver.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\common_driver.c</FilePath>
+              <FilePath>..\Drivers\BSP\common_driver.c</FilePath>
             </File>
             <File>
               <FileName>exti.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\exti.c</FilePath>
+              <FilePath>..\Drivers\BSP\exti.c</FilePath>
             </File>
             <File>
               <FileName>iic_driver.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\iic_driver.c</FilePath>
+              <FilePath>..\Drivers\BSP\iic_driver.c</FilePath>
             </File>
             <File>
               <FileName>key.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\key.c</FilePath>
+              <FilePath>..\Drivers\BSP\key.c</FilePath>
             </File>
             <File>
               <FileName>led.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\led.c</FilePath>
+              <FilePath>..\Drivers\BSP\led.c</FilePath>
             </File>
             <File>
               <FileName>my_rs485.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\my_rs485.c</FilePath>
+              <FilePath>..\Drivers\BSP\my_rs485.c</FilePath>
             </File>
             <File>
               <FileName>pcf8574.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\pcf8574.c</FilePath>
+              <FilePath>..\Drivers\BSP\pcf8574.c</FilePath>
             </File>
             <File>
               <FileName>serial_driver.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\serial_driver.c</FilePath>
+              <FilePath>..\Drivers\BSP\serial_driver.c</FilePath>
             </File>
             <File>
               <FileName>spi_flash.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\spi_flash.c</FilePath>
+              <FilePath>..\Drivers\BSP\spi_flash.c</FilePath>
             </File>
             <File>
               <FileName>wdg.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\Src\wdg.c</FilePath>
+              <FilePath>..\Drivers\BSP\wdg.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -526,39 +521,34 @@
           <GroupName>Middlewares</GroupName>
           <Files>
             <File>
-              <FileName>device_manager.c</FileName>
+              <FileName>serial_interface.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\device_manager.c</FilePath>
-            </File>
-            <File>
-              <FileName>log_system.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\log_system.c</FilePath>
-            </File>
-            <File>
-              <FileName>protocol_handler.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\protocol_handler.c</FilePath>
-            </File>
-            <File>
-              <FileName>ring_buffer.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\ring_buffer.c</FilePath>
+              <FilePath>..\Middlewares\serial_interface.c</FilePath>
             </File>
             <File>
               <FileName>rtos_abstraction.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\rtos_abstraction.c</FilePath>
+              <FilePath>..\Middlewares\rtos_abstraction.c</FilePath>
             </File>
             <File>
-              <FileName>serial_interface.c</FileName>
+              <FileName>ring_buffer.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\serial_interface.c</FilePath>
+              <FilePath>..\Middlewares\ring_buffer.c</FilePath>
             </File>
             <File>
-              <FileName>state_machine.c</FileName>
+              <FileName>protocol_handler.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\Src\state_machine.c</FilePath>
+              <FilePath>..\Middlewares\protocol_handler.c</FilePath>
+            </File>
+            <File>
+              <FileName>log_system.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\log_system.c</FilePath>
+            </File>
+            <File>
+              <FileName>device_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\device_manager.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -859,37 +849,37 @@
             <File>
               <FileName>croutine.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\croutine.c</FilePath>
+              <FilePath>..\FreeRTOS\croutine.c</FilePath>
             </File>
             <File>
               <FileName>event_groups.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\event_groups.c</FilePath>
+              <FilePath>..\FreeRTOS\event_groups.c</FilePath>
             </File>
             <File>
               <FileName>list.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\list.c</FilePath>
+              <FilePath>..\FreeRTOS\list.c</FilePath>
             </File>
             <File>
               <FileName>queue.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\queue.c</FilePath>
+              <FilePath>..\FreeRTOS\queue.c</FilePath>
             </File>
             <File>
               <FileName>stream_buffer.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\stream_buffer.c</FilePath>
+              <FilePath>..\FreeRTOS\stream_buffer.c</FilePath>
             </File>
             <File>
               <FileName>tasks.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\tasks.c</FilePath>
+              <FilePath>..\FreeRTOS\tasks.c</FilePath>
             </File>
             <File>
               <FileName>timers.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\timers.c</FilePath>
+              <FilePath>..\FreeRTOS\timers.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -899,12 +889,12 @@
             <File>
               <FileName>port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\portable\RVDS\ARM_CM4F\port.c</FilePath>
+              <FilePath>..\FreeRTOS\portable\RVDS\ARM_CM4F\port.c</FilePath>
             </File>
             <File>
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Middlewares\FreeRTOS\portable\MemMang\heap_4.c</FilePath>
+              <FilePath>..\FreeRTOS\portable\MemMang\heap_4.c</FilePath>
             </File>
           </Files>
         </Group>
