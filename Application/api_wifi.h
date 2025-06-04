@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:52:45
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-04 20:59:53
+ * @LastEditTime: 2025-06-04 21:30:58
  * @FilePath: \Demo\Application\api_wifi.h
  * @Description: WiFi 和 BLE 模块驱动头文件
  *
@@ -46,49 +46,27 @@ typedef struct {
     uint8_t retries;
     const char* description;
 } AT_Cmd_Config;
+
 /**
  * @brief ESP32 共享设备结构体
+ * 该结构体封装了ESP32模块共享的硬件资源。
  */
 typedef struct {
-    Serial_Device_t *serial_dev;    // 指向共享的串口设备 (ESP32_Serial)
-    void *mutex;                    // 指向共享的互斥锁
+    Serial_Device_t *serial_dev;    // 指向共享的串口设备 (例如 ESP32_Serial)
+    void *mutex;                    // 指向用于同步访问ESP32的共享互斥锁
     GPIO_TypeDef *reset_port;       // ESP32 复位引脚的端口
     uint16_t reset_pin;             // ESP32 复位引脚的引脚号
-    // 如果有其他共享资源，如电源使能引脚，也可以加入这里
-} ESP32_Device_t;
-
-// 全局共享设备实例的声明 (将在 app_tasks.c 中定义)
-extern ESP32_Device_t ESP32_Device;
+} ESP32_Shared_Device_t; // 使用此名称以区分实例 ESP32_Device
 
 /**
- * @brief WiFi 设备结构体
+ * @brief 全局共享ESP32设备实例的声明
+ * 该实例将在 app_tasks.c 中定义和初始化。
  */
-typedef struct {
-    Serial_Device_t *serial_dev;
-    void *mutex;
-} WiFi_Device_t;
+extern ESP32_Shared_Device_t ESP32_Device; // 实例名保持 ESP32_Device
 
-/**
- * @brief BLE 设备结构体
- */
-typedef struct {
-    Serial_Device_t *serial_dev;
-    void *mutex;
-} BLE_Device_t;
-
-/**
- * @brief ESP32 共享设备结构体
- */
-// typedef struct {
-//     Serial_Device_t *serial_dev;
-//     void *mutex;
-// } ESP32_Device_t;
+// ESP32硬件控制函数
 void ESP32_Device_HwInit(void);
-/**
- * @brief ESP32 串口中断处理函数
- * @param byte 接收到的字节
- */
-void ESP32_Serial_IRQHandler(uint8_t byte);
+void ESP32_Device_HwReset(void);
 
 /**
  * @brief 发送 WiFi AT 指令
