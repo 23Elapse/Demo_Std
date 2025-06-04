@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:52:45
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-25 19:53:00
- * @FilePath: \Demo\Middlewares\Inc\api_wifi.h
+ * @LastEditTime: 2025-06-04 20:59:53
+ * @FilePath: \Demo\Application\api_wifi.h
  * @Description: WiFi 和 BLE 模块驱动头文件
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -46,6 +46,19 @@ typedef struct {
     uint8_t retries;
     const char* description;
 } AT_Cmd_Config;
+/**
+ * @brief ESP32 共享设备结构体
+ */
+typedef struct {
+    Serial_Device_t *serial_dev;    // 指向共享的串口设备 (ESP32_Serial)
+    void *mutex;                    // 指向共享的互斥锁
+    GPIO_TypeDef *reset_port;       // ESP32 复位引脚的端口
+    uint16_t reset_pin;             // ESP32 复位引脚的引脚号
+    // 如果有其他共享资源，如电源使能引脚，也可以加入这里
+} ESP32_Device_t;
+
+// 全局共享设备实例的声明 (将在 app_tasks.c 中定义)
+extern ESP32_Device_t ESP32_Device;
 
 /**
  * @brief WiFi 设备结构体
@@ -64,32 +77,18 @@ typedef struct {
 } BLE_Device_t;
 
 /**
- * @brief 初始化 WiFi 和 BLE 硬件
+ * @brief ESP32 共享设备结构体
  */
-void atk_mb026_hw_init(void);
-
-/**
- * @brief 硬件复位 WiFi/BLE 模块
- */
-void atk_mb026_hw_reset(void);
-
+// typedef struct {
+//     Serial_Device_t *serial_dev;
+//     void *mutex;
+// } ESP32_Device_t;
+void ESP32_Device_HwInit(void);
 /**
  * @brief ESP32 串口中断处理函数
  * @param byte 接收到的字节
  */
 void ESP32_Serial_IRQHandler(uint8_t byte);
-
-/**
- * @brief 获取 WiFi 设备实例
- * @return WiFi_Device_t* WiFi 设备指针
- */
-WiFi_Device_t* WiFi_GetDevice(void);
-
-/**
- * @brief 获取 BLE 设备实例
- * @return BLE_Device_t* BLE 设备指针
- */
-BLE_Device_t* BLE_GetDevice(void);
 
 /**
  * @brief 发送 WiFi AT 指令

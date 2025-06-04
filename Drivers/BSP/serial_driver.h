@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 21:34:53
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-02 21:28:41
- * @FilePath: \Demo\Drivers\BSP\Inc\serial_driver.h
+ * @LastEditTime: 2025-06-04 19:30:40
+ * @FilePath: \Demo\Drivers\BSP\serial_driver.h
  * @Description:
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -15,7 +15,7 @@
 #include "stdbool.h"
 #include "stm32f4xx.h"
 #include "ring_buffer.h"
-
+#define SERIAL_HW_RX_BUFFER_SIZE 512 // 例如 512 字节
 /**
  * @brief 串口模式枚举
  */

@@ -72,9 +72,15 @@ static Serial_Status Serial_NVIC_Init(Serial_Device_t *dev)
 
 static Serial_Status Serial_RingBuffer_Init(Serial_Device_t *dev)
 {
-    if (RingBuffer_Init(&dev->rx_buffer, 16, sizeof(uint8_t)) != RB_OK)
-    {
-        return SERIAL_ERR_INIT;
+    if (dev->instance == USART6) { // 假设 ESP32_Serial 使用 USART6
+        if (RingBuffer_Init(&dev->rx_buffer, SERIAL_HW_RX_BUFFER_SIZE, sizeof(uint8_t)) != RB_OK) {
+            return SERIAL_ERR_INIT;
+        }
+    } else {
+        // 其他串口可能使用较小的默认值，或根据需要调整
+        if (RingBuffer_Init(&dev->rx_buffer, 16, sizeof(uint8_t)) != RB_OK) { // 其他串口维持原样或按需修改
+            return SERIAL_ERR_INIT;
+        }
     }
     return SERIAL_OK;
 }

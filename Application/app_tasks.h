@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-25 18:57:42
- * @FilePath: \Demo\Application\Inc\app_tasks.h
+ * @LastEditTime: 2025-06-04 20:43:21
+ * @FilePath: \Demo\Application\app_tasks.h
  * @Description: 应用任务头文件
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -21,8 +21,9 @@
 
 extern Serial_Device_t RS485_Device;
 extern Serial_Device_t UART_Device;
-extern WiFi_Device_t WiFi_Device;
-extern BLE_Device_t BLE_Device;
+extern Serial_Device_t ESP32_Serial;
+extern CAN_Device_t CAN1_Device;
+
 extern void USART1_IRQHandler(void);
 extern void USART2_IRQHandler(void);
 extern void USART6_IRQHandler(void);

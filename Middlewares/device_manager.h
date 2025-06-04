@@ -28,6 +28,8 @@ typedef enum
     DEVICE_TYPE_SPI_FLASH,
     DEVICE_TYPE_WIFI,
     DEVICE_TYPE_BLE,
+    DEVICE_TYPE_ESP32,
+    DEVICE_TYPE_MAX
 } Device_Type_t;
 
 /**

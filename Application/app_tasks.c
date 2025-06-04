@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 19:10:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-26 19:06:08
- * @FilePath: \Demo\Application\Src\app_tasks.c
+ * @LastEditTime: 2025-06-04 21:20:06
+ * @FilePath: \Demo\Application\app_tasks.c
  * @Description: 应用任务实现
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -83,15 +83,17 @@ CAN_Device_t CAN1_Device = {
 SPI_Flash_Device_t SPIFlash_Device = {
     .config = &flash_config,
     .id = 0};
-    
-WiFi_Device_t WiFi_Device = {
-    .serial_dev = &ESP32_Serial,
-    .mutex = NULL
+
+// static void* esp32_shared_mutex = NULL;
+
+// 定义全局共享ESP32设备实例
+ESP32_Device_t ESP32_Device = {
+    .serial_dev = &ESP32_Serial, // ESP32_Serial 是已定义的 Serial_Device_t 实例
+    .mutex = NULL,               // 将在 App_Init 中创建和赋值
+    .reset_port = GPIOA,         // 根据你之前的 atk_mb026_hw_init
+    .reset_pin = GPIO_Pin_4      // 根据你之前的 atk_mb026_hw_init
 };
-BLE_Device_t BLE_Device = {
-    .serial_dev = &ESP32_Serial,
-    .mutex = NULL
-};
+
 // 设备管理器实例
 #define MAX_DEVICES 10
 static Device_Handle_t device_array[MAX_DEVICES];
@@ -107,23 +109,9 @@ void USART2_IRQHandler(void)
     Serial_Driver_IRQHandler(&UART_Device);
 }
 
-// void USART6_IRQHandler(void)
-// {
-//     Serial_Driver_IRQHandler(&ESP32_Serial);
-// }
-
-/* 修改 USART6 中断处理函数 */
-void USART6_IRQHandler(void) {
-    if (USART_GetITStatus(USART6, USART_IT_RXNE) != RESET) {
-        uint8_t data = USART_ReceiveData(USART6);
-        ESP32_Serial_IRQHandler(data); // 调用新的中断处理函数
-        USART_ClearITPendingBit(USART6, USART_IT_RXNE);
-    }
-    
-    // 错误标志处理
-    if (USART_GetITStatus(USART6, USART_IT_ORE | USART_IT_NE | USART_IT_FE | USART_IT_PE) != RESET) {
-        USART_ClearITPendingBit(USART6, USART_IT_ORE | USART_IT_NE | USART_IT_FE | USART_IT_PE);
-    }
+void USART6_IRQHandler(void)
+{
+    Serial_Driver_IRQHandler(&ESP32_Serial);
 }
 
 void CAN1_RX0_IRQHandler(void)
@@ -143,7 +131,13 @@ void App_Init(void)
         Log_Message(LOG_LEVEL_ERROR, "[App] RTOS ops not initialized");
         return;
     }
-
+    // 创建并分配共享互斥锁给 ESP32_Device
+    void* esp32_shared_mutex = g_rtos_ops->SemaphoreCreate();
+    if (!esp32_shared_mutex) {
+        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to create ESP32 shared mutex");
+        return;
+    }
+    ESP32_Device.mutex = esp32_shared_mutex;
     // 初始化设备管理器
     DeviceManager_Init(&device_mgr, device_array, MAX_DEVICES);
 
@@ -155,22 +149,21 @@ void App_Init(void)
     DeviceManager_Register(&device_mgr, &IIC1_EEPROM, DEVICE_TYPE_EEPROM, 1);
     DeviceManager_Register(&device_mgr, &IIC1_PCF8574, DEVICE_TYPE_PCF8574, 1);
     DeviceManager_Register(&device_mgr, &SPIFlash_Device, DEVICE_TYPE_SPI_FLASH, 1);
-    DeviceManager_Register(&device_mgr, &WiFi_Device, DEVICE_TYPE_WIFI, 1);
-    DeviceManager_Register(&device_mgr, &BLE_Device, DEVICE_TYPE_BLE, 1);
-
+    DeviceManager_Register(&device_mgr, &ESP32_Device, DEVICE_TYPE_ESP32, 1);
     // 初始化 IIC 设备（PCF8574 和 EEPROM）
     IIC_INIT();
+    ESP32_Device_HwInit(); 
 
     // 初始化串口设备
     Device_Handle_t *rs485_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 1);
     Device_Handle_t *uart_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 2);
-    Device_Handle_t *wifi_serial_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 3);
+    Device_Handle_t *esp32_serial_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SERIAL, 3);
+    Device_Handle_t *esp32_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_ESP32, 1);
     Device_Handle_t *can_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_CAN, 1);
     Device_Handle_t *eeprom_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_EEPROM, 1);
     Device_Handle_t *pcf8574_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_PCF8574, 1);
     Device_Handle_t *spiflash_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_SPI_FLASH, 1);
-    Device_Handle_t *wifi_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_WIFI, 1);
-    Device_Handle_t *ble_handle = DeviceManager_Find(&device_mgr, DEVICE_TYPE_BLE, 1);
+
 
     if (rs485_handle && Serial_Operations.Init((Serial_Device_t *)rs485_handle->device) != SERIAL_OK)
     {
@@ -180,9 +173,9 @@ void App_Init(void)
     {
         Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init UART");
     }
-    if (wifi_serial_handle && Serial_Operations.Init((Serial_Device_t *)wifi_serial_handle->device) != SERIAL_OK)
+    if (esp32_serial_handle && Serial_Operations.Init((Serial_Device_t *)esp32_serial_handle->device) != SERIAL_OK)
     {
-        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init WiFi serial");
+        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init esp32 serial");
     }
     if (can_handle && CAN_Operations.Init((CAN_Device_t *)can_handle->device) != CAN_OK)
     {
@@ -205,8 +198,8 @@ void App_Init(void)
     g_rtos_ops->TaskCreate(App_RS485_PollTask, "RS485_Poll", 256, rs485_handle->device, 1);
     g_rtos_ops->TaskCreate(App_SerialRxTask, "Serial_Rx", 256, rs485_handle->device, 1);
     g_rtos_ops->TaskCreate(App_ErrorLogTask, "Error_Log", 256, NULL, 1);
-    g_rtos_ops->TaskCreate(App_WifiTask, "WiFi", 256, NULL, 1);
-    g_rtos_ops->TaskCreate(App_BLETask, "BLE", 256, NULL, 1);
+    g_rtos_ops->TaskCreate(App_WifiTask, "WiFi", 512, NULL, 1);
+    g_rtos_ops->TaskCreate(App_BLETask, "BLE", 512, NULL, 1);   
     g_rtos_ops->TaskCreate(App_CANTask, "CAN", 256, can_handle->device, 1);
     g_rtos_ops->TaskCreate(App_SPIFlashTask, "SPI_Flash", 256, spiflash_handle->device, 1);
 
@@ -294,24 +287,20 @@ void App_ErrorLogTask(void *pvParameters)
  */
 void App_WifiTask(void *pvParameters)
 {
-    WiFi_Device_t *wifi_dev = &WiFi_Device;
-    atk_mb026_hw_init();
-    atk_mb026_hw_reset();
+    ESP32_Device_HwReset();  // 调用新的统一硬件复位函数
+    // 【关键修改】在硬件复位后，增加延时等待ESP32启动
+    Log_Message(LOG_LEVEL_INFO, "[WiFi] ESP32 BCM_SWRESET, waiting for boot up...");
+    g_rtos_ops->Delay(3000); // 等待3秒钟，这个时间可能需要根据实际情况调整，可以尝试2-5秒
+    Log_Message(LOG_LEVEL_INFO, "[WiFi] ESP32 boot wait complete. Flushing buffer and starting AT commands.");
+
+    // 在这之后，第一次调用 WiFi_SendATCommand 时，其内部的缓冲区清空逻辑
+    // (while (RingBuffer_IsAvailable(...)) RingBuffer_Read(...);)
+    // 将会清空这3秒等待期间ESP32可能输出的任何残余启动信息。
+
     static uint8_t is_initialized = 0;
     uint8_t retry_count = 0;
     const uint8_t max_retries = 3;
 
-    // 创建互斥锁
-    if (!wifi_dev->mutex)
-    {
-        wifi_dev->mutex = g_rtos_ops->SemaphoreCreate();
-        if (!wifi_dev->mutex)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to create mutex");
-            g_rtos_ops->TaskDelete(NULL);
-            return;
-        }
-    }
 
     while (1)
     {
@@ -349,7 +338,7 @@ void App_WifiTask(void *pvParameters)
                     Log_Message(LOG_LEVEL_ERROR, "[WiFi] Max retries reached, suspending task");
                     g_rtos_ops->Task_Suspend(NULL);
                 }
-                atk_mb026_hw_reset();
+                ESP32_Device_HwReset(); // 硬件复位 ESP32
                 Log_Message(LOG_LEVEL_WARNING, "[WiFi] Init failed, retry %d/%d", retry_count, max_retries);
                 g_rtos_ops->Delay(5000);
                 continue;
@@ -406,25 +395,14 @@ void App_WifiTask(void *pvParameters)
  */
 void App_BLETask(void *pvParameters)
 {
-    BLE_Device_t *ble_dev = &BLE_Device;
-    atk_mb026_hw_init();
-    atk_mb026_hw_reset();   
-
+    ESP32_Device_HwReset();  // 调用新的统一硬件复位函数
+    // 【关键修改】在硬件复位后，增加延时等待ESP32启动
+    Log_Message(LOG_LEVEL_INFO, "[WiFi] ESP32 BCM_SWRESET, waiting for boot up...");
+    g_rtos_ops->Delay(3000); // 等待3秒钟，这个时间可能需要根据实际情况调整，可以尝试2-5秒
+    Log_Message(LOG_LEVEL_INFO, "[WiFi] ESP32 boot wait complete. Flushing buffer and starting AT commands.");
     static uint8_t is_initialized = 0;
     uint8_t retry_count = 0;
     const uint8_t max_retries = 3;
-
-    // 创建互斥锁
-    if (!ble_dev->mutex)
-    {
-        ble_dev->mutex = g_rtos_ops->SemaphoreCreate();
-        if (!ble_dev->mutex)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[BLE] Failed to create mutex");
-            g_rtos_ops->TaskDelete(NULL);
-            return;
-        }
-    }
 
     while (1)
     {
@@ -462,6 +440,7 @@ void App_BLETask(void *pvParameters)
                     Log_Message(LOG_LEVEL_ERROR, "[BLE] Max retries reached, suspending task");
                     g_rtos_ops->Task_Suspend(NULL);
                 }
+                ESP32_Device_HwReset(); // 硬件复位 ESP32
                 Log_Message(LOG_LEVEL_WARNING, "[BLE] Init failed, retry %d/%d", retry_count, max_retries);
                 g_rtos_ops->Delay(5000);
                 continue;

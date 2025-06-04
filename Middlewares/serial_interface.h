@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-05-02 21:30:06
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 01:12:22
- * @FilePath: \Demo\Drivers\BSP\Inc\serial_interface.h
+ * @LastEditTime: 2025-06-04 19:29:42
+ * @FilePath: \Demo\Middlewares\serial_interface.h
  * @Description:
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
