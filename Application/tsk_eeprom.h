@@ -1,123 +1,66 @@
-/*
- * @Author: 23Elapse userszy@163.com
- * @Date: 2025-04-27 19:10:06
- * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-03 00:55:12
- * @FilePath: \Demo\Middlewares\Inc\tsk_eeprom.h
- * @Description: EEPROM 任务管理头文件
- *
- * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
+/**
+ * =====================================================================================
+ * @file        tsk_eeprom.h
+ * @brief       EEPROM 参数管理模块头文件 (已封装)
+ * @author      23Elapse & Gemini
+ * @version     2.1 (Refactored & Encapsulated)
+ * @date        2025-06-08
+ * @note        本模块负责所有需要掉电保存的参数的管理。
+ * 外部模块只需调用 Tsk_Eeprom_Init() 即可启动该服务。
+ * =====================================================================================
  */
 #ifndef __TSK_EEPROM_H
 #define __TSK_EEPROM_H
 
+#include "rtos_abstraction.h" // 间接包含FreeRTOS等
 #include <stdint.h>
 #include <stdbool.h>
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-#include "log_system.h"
 
 /**
- * @brief EEPROM 错误码定义
+ * @brief EEPROM 参数管理模块错误码
  */
 typedef enum
 {
-    EEPROM_OK,
-    EEPROM_INVALID_PARAM,
-    EEPROM_ENTRY_NOT_FOUND,
-    EEPROM_DATA_INVALID,
-    EEPROM_WRITE_FAILED,
-    EEPROM_LOCK_TIMEOUT
-} EepromErrorCode;
+    EEPROM_MGR_OK = 0,
+    EEPROM_MGR_ERROR,
+    EEPROM_MGR_INVALID_ID,
+    EEPROM_MGR_INVALID_PARAM,
+    EEPROM_MGR_LOCK_TIMEOUT,
+} EepromMgr_Status_t;
 
 /**
- * @brief 恢复出厂行为枚举
+ * @brief 初始化EEPROM参数管理模块
+ * @note  此函数会完成所有参数的初始化（从EEPROM加载或使用默认值），
+ * 并自动创建后台监控任务，用于定期保存“脏”数据。
+ * 应在RTOS调度器启动前调用。
+ * @return EepromMgr_Status_t 初始化状态
  */
-typedef enum
-{
-    EERESET,
-    NO_RESET
-} FactoryResetBehavior;
+EepromMgr_Status_t Tsk_Eeprom_Init(void);
 
 /**
- * @brief EEPROM 配置条目
+ * @brief 恢复所有参数到出厂默认设置
+ * @note  这是一个阻塞操作，会立即将所有可恢复的参数写入EEPROM。
+ * @return EepromMgr_Status_t 操作状态
  */
-typedef struct
-{
-    uint16_t id;                        // 条目 ID
-    uint16_t EE_Addr;                   // EEPROM 地址
-    uint16_t *RAM_Addr;                 // RAM 地址
-    uint16_t DefaultValue;              // 默认值
-    uint16_t MaxValue;                  // 最大值
-    uint16_t MinValue;                  // 最小值
-    bool dirty;                         // 脏数据标志
-    FactoryResetBehavior ResetBehavior; // 恢复出厂行为
-    uint16_t Version;                   // 版本号
-    uint32_t Checksum;                  // 校验和
-} EepromTableEntry;
-
-// 全局互斥锁
-extern SemaphoreHandle_t xEepromMutex;
+EepromMgr_Status_t Tsk_Eeprom_FactoryReset(void);
 
 /**
- * @brief 从 EEPROM 读取数据到 RAM
- * @param entry 配置条目
- * @return EepromErrorCode 操作状态
+ * @brief 通过ID获取一个参数的当前值
+ * @param id  要获取的参数ID (定义在 eepromTable 中)
+ * @param p_value 指向用于存储参数值的变量
+ * @return EepromMgr_Status_t 操作状态
  */
-EepromErrorCode EepromReadToRam(EepromTableEntry *entry);
+EepromMgr_Status_t Tsk_Eeprom_GetParam(uint16_t id, uint16_t* p_value);
 
 /**
- * @brief 将 RAM 数据写入 EEPROM
- * @param entry 配置条目
- * @return EepromErrorCode 操作状态
+ * @brief 通过ID设置一个参数的值
+ * @note  此函数只会更新RAM中的值并标记为“脏数据”。
+ * 后台任务会自动将其回写到EEPROM。
+ * @param id 要设置的参数ID
+ * @param value 要设置的新值
+ * @return EepromMgr_Status_t 操作状态
  */
-EepromErrorCode RamSaveToEeprom(EepromTableEntry *entry);
+EepromMgr_Status_t Tsk_Eeprom_SetParam(uint16_t id, uint16_t value);
 
-/**
- * @brief 设置默认 EEPROM 数据
- * @param entry 配置条目
- */
-void DefaultEEData(EepromTableEntry *entry);
-
-/**
- * @brief 恢复出厂设置
- * @param table 配置表
- * @param table_size 表大小
- * @return EepromErrorCode 操作状态
- */
-EepromErrorCode EepromReset(EepromTableEntry *table, uint16_t table_size);
-
-/**
- * @brief 按 ID 查找配置条目
- * @param table 配置表
- * @param table_size 表大小
- * @param id 条目 ID
- * @param entry 找到的条目指针
- * @return EepromErrorCode 操作状态
- */
-EepromErrorCode EepromFindEntryById(EepromTableEntry *table, uint16_t table_size, uint8_t id, EepromTableEntry **entry);
-
-/**
- * @brief 批量保存脏数据
- * @param table 配置表
- * @param table_size 表大小
- * @return EepromErrorCode 操作状态
- */
-EepromErrorCode EepromBulkSaveDirtyEntries(EepromTableEntry *table, uint16_t table_size);
-
-/**
- * @brief 初始化 EEPROM 数据
- * @param table 配置表
- * @param table_size 表大小
- * @return EepromErrorCode 操作状态
- */
-EepromErrorCode EepromInitialize(EepromTableEntry *table, uint16_t table_size);
-
-/**
- * @brief EEPROM 监控任务
- * @param pvParameters 任务参数
- */
-void EepromMonitorTask(void *pvParameters);
 
 #endif /* __TSK_EEPROM_H */

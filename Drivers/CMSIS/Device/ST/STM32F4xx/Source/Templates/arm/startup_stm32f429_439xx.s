@@ -327,7 +327,7 @@ Default_Handler PROC
                 EXPORT  LTDC_IRQHandler                   [WEAK]
                 EXPORT  LTDC_ER_IRQHandler                [WEAK]
                 EXPORT  DMA2D_IRQHandler                  [WEAK]
-
+				IMPORT  Default_IRQHandler_Handler
 WWDG_IRQHandler                                                       
 PVD_IRQHandler                                      
 TAMP_STAMP_IRQHandler                  
@@ -419,7 +419,8 @@ SAI1_IRQHandler
 LTDC_IRQHandler                   
 LTDC_ER_IRQHandler                 
 DMA2D_IRQHandler                  
-                B       .
+				LDR     R0, =Default_IRQHandler_Handler
+				BX      R0
 
                 ENDP
 

@@ -1,178 +1,174 @@
-/*
- * @Author: 23Elapse userszy@163.com
- * @Date: 2025-04-27 19:10:06
- * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-04 21:40:54
- * @FilePath: \Demo\Application\app_tasks.c
- * @Description: 应用任务实现
- *
- * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
+/**
+ * =====================================================================================
+ * @file        app_tasks.c
+ * @brief       应用层任务创建与系统初始化协调中心
+ * @author      23Elapse & Gemini
+ * @version     2.0 (Refactored)
+ * @date        2025-06-08
+ * @note        这是系统启动的总入口，负责按顺序初始化所有模块并创建任务。
+ * =====================================================================================
  */
 #include "app_tasks.h"
-#include "device_manager.h"
+#include "dev_config.h"         // 关键：包含所有设备实例声明
+#include "device_manager.h"     // 关键：包含设备管理器接口
 #include "rtos_abstraction.h"
 #include "log_system.h"
-#include "api_eeprom.h"   // 假设存在并定义了 IIC1_EEPROM 和相关操作
-#include "api_wifi.h"     // 已更新为统一ESP32接口
-#include "can_driver.h"
-#include "serial_driver.h"
-#include "serial_interface.h" // 包含 Serial_Operations
-#include "pcf8574.h"      // 假设存在并定义了 IIC1_PCF8574 和相关操作
+#include "serial_interface.h"   // 需要 Serial_Operations
+#include "can_driver.h"         // 需要 CAN_Operations
+#include "i2c_driver.h"         // 需要 g_i2c_bus_ops
 #include "spi_flash.h"
-#include "spi_flash_driver.h" // 假设包含 W25Qxx_Init
-#include "stm32f4xx.h"
-#include "pch.h" // 假设包含 IIC1_config 和 flash_config
+#include "tsk_eeprom.h"         // 需要 Tsk_Eeprom_Init
+#include "FreeRTOS.h"
+#include "task.h"
 
-// 设备实例定义
-Serial_Device_t RS485_Device = {
-    .instance = USART1,
-    .tx_port = GPIOA, .tx_pin = GPIO_Pin_9,
-    .rx_port = GPIOA, .rx_pin = GPIO_Pin_10,
-    .de_port = GPIOA, .de_pin = GPIO_Pin_8,
-    .baudrate = 115200, .af = GPIO_AF_USART1, .irqn = USART1_IRQn,
-    .mode = RS485_MODE, .silent_ticks = 0, .rx_buffer = {0}
-};
-
-Serial_Device_t UART_Device = {
-    .instance = USART2,
-    .tx_port = GPIOA, .tx_pin = GPIO_Pin_2,
-    .rx_port = GPIOA, .rx_pin = GPIO_Pin_3,
-    .de_port = NULL, .de_pin = 0,
-    .baudrate = 9600, .af = GPIO_AF_USART2, .irqn = USART2_IRQn,
-    .mode = UART_MODE, .silent_ticks = 0, .rx_buffer = {0}
-};
-
-Serial_Device_t ESP32_Serial = { // ESP32模块的底层串口
-    .instance = USART6,
-    .tx_port = GPIOC, .tx_pin = GPIO_Pin_6,
-    .rx_port = GPIOC, .rx_pin = GPIO_Pin_7,
-    .de_port = NULL, .de_pin = 0,
-    .baudrate = 115200, .af = GPIO_AF_USART6, .irqn = USART6_IRQn,
-    .mode = UART_MODE, .silent_ticks = 0, .rx_buffer = {0}
-};
-
-CAN_Device_t CAN1_Device = {
-    .instance = CAN1,
-    .tx_port = GPIOA, .tx_pin = GPIO_Pin_12,
-    .rx_port = GPIOA, .rx_pin = GPIO_Pin_11,
-    .baudrate = 500000, .af = GPIO_AF_CAN1, .irqn = CAN1_RX0_IRQn,
-    .rx_buffer = {0} // CAN驱动的rx_buffer可能与串口不同，此处仅为占位
-};
-
-// 假设 IIC1_EEPROM 和 IIC1_PCF8574 是 IIC_Ops_t 类型或类似结构
-// 如果它们是其他类型，DeviceManager_Register 和初始化需要相应调整
-// 例如:
-//IIC_Ops_t IIC1_EEPROM = { // 示例定义，请根据您的实际IIC驱动调整
-//    .hi2c = &hi2c1, // 假设您使用STM32 HAL库的I2C句柄
-//    .dev_addr = 0xA0 // EEPROM的典型地址，可能需要移位
-//};
-//IIC_Ops_t IIC1_PCF8574 = { // 示例定义
-//    .hi2c = &hi2c1,
-//    .dev_addr = 0x40 // PCF8574的典型地址，可能需要移位
-//};
-
-
-SPI_Flash_Device_t SPIFlash_Device = {
-    .config = &flash_config, // 假设 flash_config 是 SPI_Flash_Config_t 类型指针
-    .id = 0 // 设备管理器中的ID，非Flash芯片ID
-};
-
-/**
- * @brief 全局共享ESP32设备实例的定义和初始化
+/*
+ * =====================================================================================
+ * 宏定义 - 任务参数
+ * =====================================================================================
  */
-ESP32_Shared_Device_t ESP32_Device = {
-    .serial_dev = &ESP32_Serial,
-    .mutex = NULL,
-    .reset_port = GPIOA,
-    .reset_pin = GPIO_Pin_4
-};
+#define TASK_RS485_POLL_STK_SIZE    256
+#define TASK_RS485_POLL_PRIO        2
 
-// 设备管理器实例
+#define TASK_SERIAL_RX_STK_SIZE     256
+#define TASK_SERIAL_RX_PRIO         3 // 接收任务优先级可以高一些
+
+#define TASK_ERROR_LOG_STK_SIZE     128
+#define TASK_ERROR_LOG_PRIO         1
+
+#define TASK_WIFI_STK_SIZE          512
+#define TASK_WIFI_PRIO              2
+
+#define TASK_BLE_STK_SIZE           512
+#define TASK_BLE_PRIO               2
+
+#define TASK_CAN_STK_SIZE           256
+#define TASK_CAN_PRIO               3
+
+#define TASK_SPI_FLASH_STK_SIZE     256
+#define TASK_SPI_FLASH_PRIO         2
+
+/*
+ * =====================================================================================
+ * 模块私有变量
+ * =====================================================================================
+ */
 #define MAX_DEVICES 10
-static Device_Handle_t device_array[MAX_DEVICES];
-static Device_Manager_t device_mgr;
+static Device_Handle_t g_device_array[MAX_DEVICES];
+static Device_Manager_t g_device_mgr;
 
-// 中断处理函数
-void USART1_IRQHandler(void) { if(RS485_Device.instance) Serial_Driver_IRQHandler(&RS485_Device); }
-void USART2_IRQHandler(void) { if(UART_Device.instance) Serial_Driver_IRQHandler(&UART_Device); }
-void USART6_IRQHandler(void) { if(ESP32_Serial.instance) Serial_Driver_IRQHandler(&ESP32_Serial); }
-void CAN1_RX0_IRQHandler(void) { if(CAN1_Device.instance) CAN_IRQHandler(&CAN1_Device); }
 
-/**
- * @brief 初始化应用任务
+/*
+ * =====================================================================================
+ * 内部函数声明
+ * =====================================================================================
  */
-void App_Init(void)
-{
-    g_rtos_ops = &FreeRTOS_Ops;
-    if (!g_rtos_ops || !g_rtos_ops->SemaphoreCreate || !g_rtos_ops->TaskCreate || !g_rtos_ops->TaskStartScheduler) {
-        // 无法记录日志，因为日志系统可能依赖RTOS
-        for(;;); // 严重错误，停机
-    }
+static void App_RTOS_Init(void);
+static void App_Device_Register(void);
+static void App_Driver_Init(void);
+static void App_Tasks_Create(void);
 
-    void* esp32_shared_mutex = g_rtos_ops->SemaphoreCreate();
-    if (!esp32_shared_mutex) {
-        // Log_Message(LOG_LEVEL_FATAL, "[App] Failed to create ESP32 shared mutex");
+// 各个任务的函数原型声明
+void App_RS485_PollTask(void* pvParameters);
+void App_SerialRxTask(void* pvParameters);
+void App_ErrorLogTask(void* pvParameters);
+void App_WifiTask(void* pvParameters);
+void App_BLETask(void* pvParameters);
+void App_CANTask(void* pvParameters);
+void App_SPIFlashTask(void* pvParameters);
+
+
+/*
+ * =====================================================================================
+ * 主初始化函数 (系统入口)
+ * =====================================================================================
+ */
+void App_Init(void) {
+    App_RTOS_Init();
+    App_Device_Register();
+    App_Driver_Init();
+    App_Tasks_Create();
+
+    Log_Message(LOG_LEVEL_INFO, "[App] Starting RTOS scheduler...");
+    g_rtos_ops->TaskStartScheduler();
+
+    Log_Message(LOG_LEVEL_ERROR, "FATAL: Scheduler exited unexpectedly!");
+    for (;;);
+}
+
+
+/*
+ * =====================================================================================
+ * 初始化辅助函数
+ * =====================================================================================
+ */
+static void App_RTOS_Init(void) {
+    g_rtos_ops = &FreeRTOS_Ops;
+    if (!g_rtos_ops || !g_rtos_ops->SemaphoreCreate || !g_rtos_ops->TaskCreate) {
+        for (;;);
+    }
+    // ESP32的Mutex在其驱动内部或dev_config中处理更佳，此处简化
+}
+
+static void App_Device_Register(void) {
+    DeviceManager_Init(&g_device_mgr, g_device_array, MAX_DEVICES);
+    Log_Message(LOG_LEVEL_INFO, "[App] Registering devices to manager...");
+
+    DeviceManager_Register(&g_device_mgr, &g_rs485_serial, DEVICE_TYPE_SERIAL, 1);
+    DeviceManager_Register(&g_device_mgr, &g_uart_dev,     DEVICE_TYPE_SERIAL, 2);
+    DeviceManager_Register(&g_device_mgr, &g_esp32_serial,  DEVICE_TYPE_SERIAL, 3);
+    DeviceManager_Register(&g_device_mgr, &g_can1_dev,      DEVICE_TYPE_CAN_BUS, 1);
+    DeviceManager_Register(&g_device_mgr, &g_i2c1_bus,      DEVICE_TYPE_I2C_BUS, 1);
+    DeviceManager_Register(&g_device_mgr, &g_spi_flash_dev, DEVICE_TYPE_SPI_FLASH, 1);
+    DeviceManager_Register(&g_device_mgr, &g_esp32_dev,     DEVICE_TYPE_ESP32, 1);
+    // 为ESP32设备创建共享互斥锁
+    g_esp32_dev.mutex = g_rtos_ops->SemaphoreCreate();
+    if (!g_esp32_dev.mutex) {
+        Log_Message(LOG_LEVEL_ERROR, "[App] create ESP32 mutex failed"); // 日志系统此时可能未就绪
         for(;;); // 停机
     }
-    ESP32_Device.mutex = esp32_shared_mutex;
-
-    DeviceManager_Init(&device_mgr, device_array, MAX_DEVICES);
-
-    // 注册所有设备
-    DeviceManager_Register(&device_mgr, &RS485_Device, DEVICE_TYPE_SERIAL, 1);
-    DeviceManager_Register(&device_mgr, &UART_Device, DEVICE_TYPE_SERIAL, 2);
-    DeviceManager_Register(&device_mgr, &ESP32_Serial, DEVICE_TYPE_SERIAL, 3);
-    DeviceManager_Register(&device_mgr, &CAN1_Device, DEVICE_TYPE_CAN, 1);
-    DeviceManager_Register(&device_mgr, &IIC1_EEPROM, DEVICE_TYPE_EEPROM, 1);
-    DeviceManager_Register(&device_mgr, &IIC1_PCF8574, DEVICE_TYPE_PCF8574, 1);
-    DeviceManager_Register(&device_mgr, &SPIFlash_Device, DEVICE_TYPE_SPI_FLASH, 1);
-    DeviceManager_Register(&device_mgr, &ESP32_Device, DEVICE_TYPE_ESP32, 1);
-
-    // 初始化基础硬件和驱动
-    IIC_INIT(); // 假设此函数初始化I2C外设
-    ESP32_Device_HwInit();
-
-    // 初始化各个设备驱动 (直接使用全局实例)
-    if (Serial_Operations.Init(&RS485_Device) != SERIAL_OK) {
-        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init RS485");
-    }
-    if (Serial_Operations.Init(&UART_Device) != SERIAL_OK) {
-        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init UART");
-    }
-    if (Serial_Operations.Init(&ESP32_Serial) != SERIAL_OK) {
-        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init ESP32 serial (USART6)");
-    }
-    if (CAN_Operations.Init(&CAN1_Device) != CAN_OK) {
-        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init CAN");
-    }
-    // EEPROM 和 PCF8574 的初始化依赖于其具体驱动实现
-    // 假设有类似 API_EEPROM_Init(&IIC1_EEPROM) 和 API_PCF8574_Init(&IIC1_PCF8574) 的函数
-    // 或者它们的初始化已包含在 IIC_INIT() 或其他地方
-    // if (API_EEPROM_Init(&IIC1_EEPROM) != STATUS_OK) { // 示例
-    //     Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init EEPROM");
-    // }
-    // if (API_PCF8574_Init(&IIC1_PCF8574) != STATUS_OK) { // 示例
-    //     Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init PCF8574");
-    // }
-    if (SPIFlash_Device.config && W25Qxx_Init(SPIFlash_Device.config) != FLASH_OK) { // 确保config有效
-        Log_Message(LOG_LEVEL_ERROR, "[App] Failed to init SPI Flash");
-    }
-
-
-    // 创建任务
-    g_rtos_ops->TaskCreate(App_RS485_PollTask, "RS485_Poll", 256, &RS485_Device, 1);
-    g_rtos_ops->TaskCreate(App_SerialRxTask, "Serial_Rx", 256, &RS485_Device, 1);
-    g_rtos_ops->TaskCreate(App_ErrorLogTask, "Error_Log", 256, NULL, 1);
-    g_rtos_ops->TaskCreate(App_WifiTask, "WiFi", 512, NULL, 2); // 提高WiFi/BLE任务优先级
-    g_rtos_ops->TaskCreate(App_BLETask, "BLE", 512, NULL, 2);
-    g_rtos_ops->TaskCreate(App_CANTask, "CAN", 256, &CAN1_Device, 1);
-    g_rtos_ops->TaskCreate(App_SPIFlashTask, "SPI_Flash", 256, &SPIFlash_Device, 1);
-
-    Log_Message(LOG_LEVEL_INFO, "[App] Starting scheduler...");
-    g_rtos_ops->TaskStartScheduler();
-    Log_Message(LOG_LEVEL_ERROR, "[App] Scheduler exited unexpectedly!"); // 不应执行到此
-    for(;;);
 }
+
+static void App_Driver_Init(void) {
+    Log_Message(LOG_LEVEL_INFO, "[App] Initializing hardware drivers...");
+
+    // 初始化底层物理驱动
+    Serial_Operations.Init(&g_rs485_serial);
+    Serial_Operations.Init(&g_uart_dev);
+    Serial_Operations.Init(&g_esp32_serial);
+    CAN_Operations.Init(&g_can1_dev);
+    g_i2c_bus_ops.Init(&g_i2c1_bus);
+    SPI_Flash_Init(g_spi_flash_dev.config);
+
+    // 初始化高层服务/模块
+    // Tsk_Eeprom_Init(); // 此函数会初始化参数并创建自己的后台任务
+}
+
+static void App_Tasks_Create(void) {
+    Log_Message(LOG_LEVEL_INFO, "[App] Creating application tasks...");
+
+    g_rtos_ops->TaskCreate(App_RS485_PollTask, "RS485_Poll", TASK_RS485_POLL_STK_SIZE, &g_rs485_serial, TASK_RS485_POLL_PRIO);
+    g_rtos_ops->TaskCreate(App_SerialRxTask, "Serial_Rx", TASK_SERIAL_RX_STK_SIZE, &g_rs485_serial, TASK_SERIAL_RX_PRIO);
+    g_rtos_ops->TaskCreate(App_ErrorLogTask, "Error_Log", TASK_ERROR_LOG_STK_SIZE, NULL, TASK_ERROR_LOG_PRIO);
+    g_rtos_ops->TaskCreate(App_WifiTask, "WiFi", TASK_WIFI_STK_SIZE, NULL, TASK_WIFI_PRIO);
+    g_rtos_ops->TaskCreate(App_BLETask, "BLE", TASK_BLE_STK_SIZE, NULL, TASK_BLE_PRIO);
+    g_rtos_ops->TaskCreate(App_CANTask, "CAN", TASK_CAN_STK_SIZE, &g_can1_dev, TASK_CAN_PRIO);
+    g_rtos_ops->TaskCreate(App_SPIFlashTask, "SPI_Flash", TASK_SPI_FLASH_STK_SIZE, &g_spi_flash_dev, TASK_SPI_FLASH_PRIO);
+    
+    // 注意：EepromMonitorTask 由 Tsk_Eeprom_Init() 内部创建，此处无需再创建
+}
+
+/*
+ * =====================================================================================
+ * 任务函数实现 (此处仅为框架，具体实现需保留)
+ * =====================================================================================
+ */
+// void App_RS485_PollTask(void *pvParameters) {
+//     Serial_Device_t *dev = (Serial_Device_t *)pvParameters;
+//     for(;;) {
+//         Serial_Operations.PollSendRS485(dev);
+//         g_rtos_ops->Delay(10); // 轮询间隔
+//     }
+// }
 
 /**
  * @brief RS485 轮询任务
@@ -269,7 +265,7 @@ void App_WifiTask(void *pvParameters)
     while(!esp32_ready && ready_retry_count < max_ready_retries) {
         ESP32_Device_HwReset(); // 硬件复位ESP32
         Log_Message(LOG_LEVEL_INFO, "[WiFi] ESP32 Reset, waiting for boot up (attempt %d/%d)...", ready_retry_count + 1, max_ready_retries);
-        if (g_rtos_ops->Delay) g_rtos_ops->Delay(3000); // 等待3秒
+        if (g_rtos_ops->Delay) g_rtos_ops->Delay(300); // 等待300ms
 
         // 发送基础AT指令测试模块是否响应
         AT_Cmd_Config at_test_cmd = {"AT\r\n", "OK", 2000, 2, "ESP32 Ready Test"};
@@ -518,5 +514,40 @@ void App_SPIFlashTask(void *pvParameters) {
             Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Write with erase failed.");
         }
         if (g_rtos_ops && g_rtos_ops->Delay) g_rtos_ops->Delay(5000);
+    }
+}
+
+// 可以将此代码段添加到 app_tasks.c 的末尾
+
+/**
+ * @brief  当 pvPortMalloc() 返回 NULL 时，此钩子函数会被调用。
+ * @note   通常是因为FreeRTOS的堆空间不足。
+ */
+void vApplicationMallocFailedHook(void)
+{
+    // 在这里设置一个断点！
+    // 如果程序停在这里，就说明是总堆空间(configTOTAL_HEAP_SIZE)不足导致的。
+    taskDISABLE_INTERRUPTS();
+    for(;;)
+    {
+    }
+}
+
+/**
+ * @brief  当检测到任务栈溢出时，此钩子函数会被调用。
+ * @param  pxTask: 发生溢出的任务句柄
+ * @param  pcTaskName: 发生溢出的任务名
+ */
+void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
+{
+    (void)pxTask; // 未使用参数
+
+    // 在这里设置一个断点！
+    // 如果程序停在这里，就说明名为 pcTaskName 的任务发生了栈溢出。
+    // 你需要增加创建该任务时分配的堆栈大小。
+    Log_Message(LOG_LEVEL_ERROR, "FATAL: Stack overflow in task: %s", pcTaskName);
+    taskDISABLE_INTERRUPTS();
+    for(;;)
+    {
     }
 }

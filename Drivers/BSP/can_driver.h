@@ -12,9 +12,8 @@
 #define __CAN_DRIVER_H
 
 #include "ring_buffer.h"
-#include "log_system.h"
 #include "stm32f4xx.h"
-
+#define CAN_RX_BUFFER_CAPACITY 16 // CAN接收环形缓冲区的容量
 /**
  * @brief CAN 状态枚举
  */

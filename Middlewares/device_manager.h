@@ -1,34 +1,32 @@
-/*
- * @Author: 23Elapse userszy@163.com
- * @Date: 2025-04-27 19:10:06
- * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-04 15:09:25
- * @FilePath: \Demo\Drivers\BSP\Inc\device_manager.h
- * @Description: 设备管理器头文件
- *
- * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
+/**
+ * =====================================================================================
+ * @file        device_manager.h
+ * @brief       设备管理器头文件 (已优化)
+ * @author      23Elapse & Gemini
+ * @version     2.0 (Refactored)
+ * @date        2025-06-08
+ * @note        统一管理和查找系统中的物理设备和总线。
+ * =====================================================================================
  */
 #ifndef __DEVICE_MANAGER_H
 #define __DEVICE_MANAGER_H
 
 #include <stdint.h>
-#include "api_wifi.h"
 #include "rtos_abstraction.h"
 
 /**
- * @brief 设备类型枚举
+ * @brief 设备类型枚举 (已精简和优化)
+ * @note  只包含物理总线或独立的物理设备类型。
  */
 typedef enum
 {
     DEVICE_TYPE_NONE = 0,
-    DEVICE_TYPE_SERIAL,
-    DEVICE_TYPE_EEPROM,
-    DEVICE_TYPE_PCF8574,
-    DEVICE_TYPE_CAN,
-    DEVICE_TYPE_SPI_FLASH,
-    DEVICE_TYPE_WIFI,
-    DEVICE_TYPE_BLE,
-    DEVICE_TYPE_ESP32,
+    DEVICE_TYPE_SERIAL,       // 物理串口 (USART/UART)
+    DEVICE_TYPE_CAN_BUS,      // CAN 总线
+    DEVICE_TYPE_I2C_BUS,      // I2C 总线
+    DEVICE_TYPE_SPI_BUS,      // SPI 总线
+    DEVICE_TYPE_SPI_FLASH,    // SPI Flash 设备 (作为一个完整的设备)
+    DEVICE_TYPE_ESP32,        // ESP32 复合设备
     DEVICE_TYPE_MAX
 } Device_Type_t;
 
@@ -47,9 +45,9 @@ typedef enum
  */
 typedef struct
 {
-    void *device;           // 设备实例指针（如 Serial_Device_t 或 WiFi_Device_t）
-    Device_Type_t type;     // 设备类型
-    uint8_t id;             // 设备 ID
+    void* device; // 指向设备/总线实例的指针 (例如 Serial_Device_t* 或 I2C_Bus_t*)
+    Device_Type_t   type;   // 设备类型
+    uint8_t         id;     // 设备ID (同类型设备中的唯一标识)
     Device_Status_t status; // 设备状态
 } Device_Handle_t;
 
@@ -58,52 +56,46 @@ typedef struct
  */
 typedef struct
 {
-    Device_Handle_t *devices; // 设备句柄数组
-    uint8_t max_devices;      // 最大设备数
-    uint8_t count;            // 当前设备数
-    void *mutex;              // RTOS 互斥锁
+    Device_Handle_t* devices;     // 设备句柄数组
+    uint8_t          max_devices; // 数组最大容量
+    uint8_t          count;       // 当前已注册的设备数量
+    void* mutex;       // 用于保护管理器访问的互斥锁
 } Device_Manager_t;
 
 /**
  * @brief 初始化设备管理器
- * @param mgr 设备管理器实例
- * @param device_array 设备句柄数组
- * @param max_size 最大设备数
+ * @param mgr 要初始化的设备管理器实例
+ * @param device_array 用于存储设备句柄的数组
+ * @param max_size 数组的最大容量
  */
-void DeviceManager_Init(Device_Manager_t *mgr, Device_Handle_t *device_array, uint8_t max_size);
+void DeviceManager_Init(Device_Manager_t* mgr, Device_Handle_t* device_array, uint8_t max_size);
 
 /**
- * @brief 注册设备
+ * @brief 注册一个新设备到管理器
  * @param mgr 设备管理器实例
- * @param device 设备实例
+ * @param device 指向设备实例的指针
  * @param type 设备类型
- * @param id 设备 ID
- * @return Device_Handle_t* 设备句柄，失败返回 NULL
+ * @param id 设备ID
+ * @return Device_Handle_t* 成功则返回设备句柄，失败返回NULL
  */
-Device_Handle_t *DeviceManager_Register(Device_Manager_t *mgr, const void *device, Device_Type_t type, uint8_t id);
+Device_Handle_t* DeviceManager_Register(Device_Manager_t* mgr, const void* device, Device_Type_t type, uint8_t id);
 
 /**
- * @brief 查找设备
+ * @brief 根据类型和ID查找设备
  * @param mgr 设备管理器实例
- * @param type 设备类型
- * @param id 设备 ID
- * @return Device_Handle_t* 设备句柄，未找到返回 NULL
+ * @param type 要查找的设备类型
+ * @param id 要查找的设备ID
+ * @return Device_Handle_t* 成功则返回设备句柄，未找到返回NULL
  */
-Device_Handle_t *DeviceManager_Find(Device_Manager_t *mgr, Device_Type_t type, uint8_t id);
+Device_Handle_t* DeviceManager_Find(Device_Manager_t* mgr, Device_Type_t type, uint8_t id);
 
 /**
- * @brief 注销设备
+ * @brief 从管理器中注销一个设备
  * @param mgr 设备管理器实例
- * @param handle 设备句柄
+ * @param handle 要注销的设备句柄
  */
-void DeviceManager_Unregister(Device_Manager_t *mgr, Device_Handle_t *handle);
+void DeviceManager_Unregister(Device_Manager_t* mgr, Device_Handle_t* handle);
 
-/**
- * @brief 检查设备状态
- * @param handle 设备句柄
- * @return Device_Status_t 设备状态
- */
-Device_Status_t DeviceManager_CheckStatus(Device_Handle_t *handle);
 
 #endif /* __DEVICE_MANAGER_H */
 

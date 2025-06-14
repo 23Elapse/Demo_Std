@@ -22,9 +22,12 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_it.h"
-#include "FreeRTOS.h"					//FreeRTOSʹ��		  
+#include "FreeRTOS.h"					//FreeRTOSʹ��		  
 #include "task.h" 
 #include "pch.h"
+#include "dev_config.h"       // 关键：包含所有设备实例
+#include "serial_driver.h"    // 关键：包含串口中断处理总函数
+#include "can_driver.h"       // 关键：包含CAN中断处理总函数
 /** @addtogroup Template_Project
   * @{
   */
@@ -48,7 +51,16 @@
 void NMI_Handler(void)
 {
 }
-
+// stm32f4xx_it.c
+void Default_IRQHandler_Handler(void)
+{
+    // 在这里设置断点！
+    // 如果程序停在这里，就说明一个未定义的外设中断被触发了。
+    // 你可以查看调试器中的 IPSR 寄存器来确定具体的中断号。
+    while(1)
+    {
+    }
+}
 /**
   * @brief  This function handles Hard Fault exception.
   * @param  None
@@ -134,7 +146,7 @@ void DebugMon_Handler(void)
   * @retval None
   */
 extern void xPortSysTickHandler(void);
-//systick�жϷ�����
+//systick�жϷ�����
 void SysTick_Handler(void)
 {
     #if (INCLUDE_xTaskGetSchedulerState  == 1 )
@@ -166,5 +178,37 @@ void SysTick_Handler(void)
 /**
   * @}
   */ 
+/**
+  * @brief  This function handles USART1 global interrupt.
+  */
+void USART1_IRQHandler(void)
+{
+    // 调用我们统一的串口中断处理函数，并传入正确的设备实例
+    Serial_Driver_IRQHandler(&g_rs485_serial);
+}
+
+/**
+  * @brief  This function handles USART2 global interrupt.
+  */
+void USART2_IRQHandler(void)
+{
+    Serial_Driver_IRQHandler(&g_uart_dev);
+}
+
+/**
+  * @brief  This function handles USART6 global interrupt.
+  */
+void USART6_IRQHandler(void)
+{
+    Serial_Driver_IRQHandler(&g_esp32_serial);
+}
+
+/**
+  * @brief  This function handles CAN1 RX0 interrupt.
+  */
+void CAN1_RX0_IRQHandler(void)
+{
+    CAN_IRQHandler(&g_can1_dev);
+}
 
 

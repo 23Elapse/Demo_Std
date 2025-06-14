@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-27 10:00:00
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-05 21:45:55
- * @FilePath: \Demo\Drivers\BSP\Src\common_driver.c
+ * @LastEditTime: 2025-06-08 18:15:21
+ * @FilePath: \Demo_backup\Drivers\BSP\common_driver.c
  * @Description: 通用驱动实现，供 RS485、UART、CAN、定时器等设备复用
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -146,3 +146,22 @@ Common_Status Common_TIM_Init(TIM_TypeDef *instance, uint32_t period_us, uint8_t
     return COMMON_OK;
 }
 
+/**
+ * @brief  提供一个简单的微秒级延时 (阻塞式)
+ * @note   这是一个基于指令计数的估算延时，精度不高，且会受中断影响。
+ * 如果需要高精度延时，应使用定时器。
+ * SystemCoreClock / 1000000 = 每个微秒的系统时钟周期数。
+ * 循环次数需要根据您的系统时钟和编译器优化等级进行微调。
+ * @param  nus: 要延时的微秒数
+ */
+void Common_Delay_us(uint32_t nus) {
+    uint32_t i;
+    // 这个值是基于一个典型的高频时钟估算的，您可能需要调整
+    // 例如，对于168MHz时钟，1us大约是168个时钟周期，一个简单循环大约耗费几个周期。
+    // 我们这里用一个近似值，例如，循环10次约等于1us。
+    uint32_t ticks_per_us = SystemCoreClock / 1000000 / 8; 
+    
+    for (i = 0; i < nus * ticks_per_us; i++) {
+        __NOP(); // 使用NOP指令防止编译器优化掉空循环
+    }
+}

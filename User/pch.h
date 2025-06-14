@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-15 20:36:56
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-25 16:21:05
- * @FilePath: \Demo\User\pch.h
+ * @LastEditTime: 2025-06-08 19:57:19
+ * @FilePath: \Demo_backup\User\pch.h
  * @Description: 
  * 
  * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
@@ -55,7 +55,6 @@
 #include <stdint.h>
 #include "semphr.h"
 #include "ring_buffer.h"   
-#include "usart.h"
 #include "led.h"
 #include "delay.h"
 #include "key.h"
@@ -66,13 +65,13 @@
 #include "spi_flash.h"
 // #include "myiic.h"
 //#include "24cxx.h"
-#include "iic_core.h"
+// #include "i2c_driver.h"
 //#include "my_rs485.h"
 #include "pcf8574.h"
 #include "queue.h"
 #include "api_wifi.h"
 #include "semphr.h"
-#include "FreeRTOS.h"
+// #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
 #include "api_wifi.h"

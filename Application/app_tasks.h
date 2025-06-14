@@ -17,7 +17,7 @@
 #include "serial_driver.h"
 #include "rtos_abstraction.h"
 #include "log_system.h"
-#include "spi_flash_driver.h" // 假设包含 SPI_Flash_Device_t
+#include "spi_flash.h" // 假设包含 SPI_Flash_Device_t
 
 // 全局设备实例的 extern 声明
 extern Serial_Device_t RS485_Device;

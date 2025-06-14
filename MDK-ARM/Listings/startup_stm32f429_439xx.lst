@@ -483,9 +483,9 @@ ARM Macro Assembler    Page 8
   184 00000000                 IMPORT           SystemInit
   185 00000000                 IMPORT           __main
   186 00000000         
-  187 00000000 4806            LDR              R0, =SystemInit
+  187 00000000 4807            LDR              R0, =SystemInit
   188 00000002 4780            BLX              R0
-  189 00000004 4806            LDR              R0, =__main
+  189 00000004 4807            LDR              R0, =__main
   190 00000006 4700            BX               R0
   191 00000008                 ENDP
   192 00000008         
@@ -756,7 +756,7 @@ ARM Macro Assembler    Page 12
    [WEAK]
   329 0000001A                 EXPORT           DMA2D_IRQHandler               
    [WEAK]
-  330 0000001A         
+  330 0000001A                 IMPORT           Default_IRQHandler_Handler
   331 0000001A         WWDG_IRQHandler
   332 0000001A         PVD_IRQHandler
   333 0000001A         TAMP_STAMP_IRQHandler
@@ -860,27 +860,29 @@ ARM Macro Assembler    Page 14
   419 0000001A         LTDC_IRQHandler
   420 0000001A         LTDC_ER_IRQHandler
   421 0000001A         DMA2D_IRQHandler
-  422 0000001A E7FE            B                .
-  423 0000001C         
-  424 0000001C                 ENDP
-  425 0000001C         
-  426 0000001C                 ALIGN
-  427 0000001C         
-  428 0000001C         ;*******************************************************
+  422 0000001A 4803            LDR              R0, =Default_IRQHandler_Handler
+  423 0000001C 4700            BX               R0
+  424 0000001E         
+  425 0000001E                 ENDP
+  426 0000001E         
+  427 0000001E 00 00           ALIGN
+  428 00000020         
+  429 00000020         ;*******************************************************
                        ************************
-  429 0000001C         ; User Stack and Heap initialization
-  430 0000001C         ;*******************************************************
+  430 00000020         ; User Stack and Heap initialization
+  431 00000020         ;*******************************************************
                        ************************
-  431 0000001C                 IF               :DEF:__MICROLIB
-  432 0000001C         
-  433 0000001C                 EXPORT           __initial_sp
-  434 0000001C                 EXPORT           __heap_base
-  435 0000001C                 EXPORT           __heap_limit
-  436 0000001C         
-  437 0000001C                 ELSE
-  452                          ENDIF
-  453 0000001C         
-  454 0000001C                 END
+  432 00000020                 IF               :DEF:__MICROLIB
+  433 00000020         
+  434 00000020                 EXPORT           __initial_sp
+  435 00000020                 EXPORT           __heap_base
+  436 00000020                 EXPORT           __heap_limit
+  437 00000020         
+  438 00000020                 ELSE
+  453                          ENDIF
+  454 00000020         
+  455 00000020                 END
+              00000000 
               00000000 
               00000000 
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4.fp.sp --apcs=
@@ -922,7 +924,7 @@ arm\startup_stm32f429_439xx.s
    Uses
       At line 65 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates\
 arm\startup_stm32f429_439xx.s
-      At line 433 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
+      At line 434 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
 \arm\startup_stm32f429_439xx.s
 
 3 symbols
@@ -957,7 +959,7 @@ Symbol: __heap_base
       At line 51 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates\
 arm\startup_stm32f429_439xx.s
    Uses
-      At line 434 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
+      At line 435 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
 \arm\startup_stm32f429_439xx.s
 Comment: __heap_base used once
 __heap_limit 00000200
@@ -967,7 +969,7 @@ Symbol: __heap_limit
       At line 53 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates\
 arm\startup_stm32f429_439xx.s
    Uses
-      At line 435 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
+      At line 436 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
 \arm\startup_stm32f429_439xx.s
 Comment: __heap_limit used once
 4 symbols
@@ -2411,6 +2413,16 @@ Comment: __Vectors_Size used once
 ARM Macro Assembler    Page 1 Alphabetic symbol ordering
 External symbols
 
+Default_IRQHandler_Handler 00000000
+
+Symbol: Default_IRQHandler_Handler
+   Definitions
+      At line 330 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
+\arm\startup_stm32f429_439xx.s
+   Uses
+      At line 422 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
+\arm\startup_stm32f429_439xx.s
+Comment: Default_IRQHandler_Handler used once
 SystemInit 00000000
 
 Symbol: SystemInit
@@ -2431,5 +2443,5 @@ Symbol: __main
       At line 189 in file ..\Drivers\CMSIS\Device\ST\STM32F4xx\Source\Templates
 \arm\startup_stm32f429_439xx.s
 Comment: __main used once
-2 symbols
-454 symbols in table
+3 symbols
+455 symbols in table

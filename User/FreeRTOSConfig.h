@@ -3,7 +3,7 @@
 
 /* 头文件 */
 #include "sys.h"
-#include "usart.h"
+#include <stdio.h>
 #include <stdint.h>
 
 extern uint32_t SystemCoreClock;

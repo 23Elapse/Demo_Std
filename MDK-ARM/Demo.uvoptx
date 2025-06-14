@@ -148,24 +148,7 @@
           <Name>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000 -FN1 -FF0STM32F4xx_1024 -FS08000000 -FL0100000 -FP0($$Device:STM32F429IGTx$CMSIS\Flash\STM32F4xx_1024.FLM))</Name>
         </SetRegEntry>
       </TargetDriverDllRegistry>
-      <Breakpoint>
-        <Bp>
-          <Number>0</Number>
-          <Type>0</Type>
-          <LineNumber>169</LineNumber>
-          <EnabledFlag>1</EnabledFlag>
-          <Address>0</Address>
-          <ByteObject>0</ByteObject>
-          <HtxType>0</HtxType>
-          <ManyObjects>0</ManyObjects>
-          <SizeOfObject>0</SizeOfObject>
-          <BreakByAccess>0</BreakByAccess>
-          <BreakIfRCount>0</BreakIfRCount>
-          <Filename>..\Application\app_tasks.c</Filename>
-          <ExecCommand></ExecCommand>
-          <Expression></Expression>
-        </Bp>
-      </Breakpoint>
+      <Breakpoint/>
       <WatchWindow1>
         <Ww>
           <count>0</count>
@@ -185,19 +168,29 @@
         <Ww>
           <count>3</count>
           <WinNumber>1</WinNumber>
-          <ItemText>dev</ItemText>
+          <ItemText>SysTick</ItemText>
         </Ww>
         <Ww>
           <count>4</count>
           <WinNumber>1</WinNumber>
-          <ItemText>ESP32_Serial</ItemText>
+          <ItemText>g_esp32_dev</ItemText>
+        </Ww>
+        <Ww>
+          <count>5</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_device_mgr</ItemText>
+        </Ww>
+        <Ww>
+          <count>6</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_device_array</ItemText>
         </Ww>
       </WatchWindow1>
       <MemoryWindow1>
         <Mm>
           <WinNumber>1</WinNumber>
-          <SubType>8</SubType>
-          <ItemText>0x20006508</ItemText>
+          <SubType>2</SubType>
+          <ItemText>0x2000DD78</ItemText>
           <AccSizeX>0</AccSizeX>
         </Mm>
       </MemoryWindow1>
@@ -307,6 +300,18 @@
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
+    <File>
+      <GroupNumber>1</GroupNumber>
+      <FileNumber>5</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\Application\dev_config.c</PathWithFileName>
+      <FilenameWithoutPath>dev_config.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
   </Group>
 
   <Group>
@@ -317,7 +322,7 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>2</GroupNumber>
-      <FileNumber>5</FileNumber>
+      <FileNumber>6</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -329,7 +334,7 @@
     </File>
     <File>
       <GroupNumber>2</GroupNumber>
-      <FileNumber>6</FileNumber>
+      <FileNumber>7</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -341,7 +346,7 @@
     </File>
     <File>
       <GroupNumber>2</GroupNumber>
-      <FileNumber>7</FileNumber>
+      <FileNumber>8</FileNumber>
       <FileType>5</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -353,7 +358,7 @@
     </File>
     <File>
       <GroupNumber>2</GroupNumber>
-      <FileNumber>8</FileNumber>
+      <FileNumber>9</FileNumber>
       <FileType>5</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -373,7 +378,7 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>9</FileNumber>
+      <FileNumber>10</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -385,7 +390,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>10</FileNumber>
+      <FileNumber>11</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -397,7 +402,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>11</FileNumber>
+      <FileNumber>12</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -409,25 +414,13 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>12</FileNumber>
+      <FileNumber>13</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
       <PathWithFileName>..\Drivers\BSP\exti.c</PathWithFileName>
       <FilenameWithoutPath>exti.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>3</GroupNumber>
-      <FileNumber>13</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\Drivers\BSP\iic_driver.c</PathWithFileName>
-      <FilenameWithoutPath>iic_driver.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -462,18 +455,6 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Drivers\BSP\my_rs485.c</PathWithFileName>
-      <FilenameWithoutPath>my_rs485.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>3</GroupNumber>
-      <FileNumber>17</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
       <PathWithFileName>..\Drivers\BSP\pcf8574.c</PathWithFileName>
       <FilenameWithoutPath>pcf8574.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
@@ -481,9 +462,9 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>18</FileNumber>
+      <FileNumber>17</FileNumber>
       <FileType>1</FileType>
-      <tvExp>0</tvExp>
+      <tvExp>1</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
       <PathWithFileName>..\Drivers\BSP\serial_driver.c</PathWithFileName>
@@ -493,7 +474,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>19</FileNumber>
+      <FileNumber>18</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -505,13 +486,37 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>20</FileNumber>
+      <FileNumber>19</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
       <PathWithFileName>..\Drivers\BSP\wdg.c</PathWithFileName>
       <FilenameWithoutPath>wdg.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>3</GroupNumber>
+      <FileNumber>20</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\Drivers\BSP\i2c_driver.c</PathWithFileName>
+      <FilenameWithoutPath>i2c_driver.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>3</GroupNumber>
+      <FileNumber>21</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\Drivers\BSP\rs485_driver.c</PathWithFileName>
+      <FilenameWithoutPath>rs485_driver.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -525,25 +530,13 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>4</GroupNumber>
-      <FileNumber>21</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\Drivers\SYSTEM\Src\delay.c</PathWithFileName>
-      <FilenameWithoutPath>delay.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>4</GroupNumber>
       <FileNumber>22</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Drivers\SYSTEM\Src\sys.c</PathWithFileName>
-      <FilenameWithoutPath>sys.c</FilenameWithoutPath>
+      <PathWithFileName>..\Drivers\SYSTEM\delay.c</PathWithFileName>
+      <FilenameWithoutPath>delay.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -554,8 +547,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Drivers\SYSTEM\Src\usart.c</PathWithFileName>
-      <FilenameWithoutPath>usart.c</FilenameWithoutPath>
+      <PathWithFileName>..\Drivers\SYSTEM\sys.c</PathWithFileName>
+      <FilenameWithoutPath>sys.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1207,7 +1200,7 @@
 
   <Group>
     <GroupName>FreeRTOS_CORE</GroupName>
-    <tvExp>1</tvExp>
+    <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>

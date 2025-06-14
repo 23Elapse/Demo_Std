@@ -39,6 +39,7 @@ typedef struct
     uint8_t (*QueueTake)(void *queue, uint32_t timeout);                                                                     // 获取队列
     void (*Task_Suspend)(void *task);                                                                                       // 挂起任务
     void (*Task_Resume)(void *task);                                                                                        // 恢复任务
+    void* (*SemaphoreCreateCounting)(uint32_t max_count, uint32_t initial_count);
 } RTOS_Ops_t;
 
 // 全局 RTOS 操作接口

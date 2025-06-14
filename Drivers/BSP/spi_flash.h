@@ -128,7 +128,11 @@ typedef struct
 extern const uint8_t g_flash_write_reg_cmd[];
 extern const uint8_t g_flash_read_reg_cmd[];
 extern SPI_Flash_Config flash_config;
-
+typedef struct
+{
+    SPI_Flash_Config *config; // SPI Flash 配置
+    uint16_t id;              // 设备 ID
+} SPI_Flash_Device_t;
 /**
  * @brief 初始化 SPI Flash 硬件接口
  * @param config Flash 配置结构体指针

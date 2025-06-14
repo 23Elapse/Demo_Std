@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F429_439xx,</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Drivers\BSP;..\Drivers\CMSIS\Device\ST\STM32F4xx\Include;..\Drivers\CMSIS\Include;..\Drivers\STM32F4xx_StdPeriph_Driver\inc;..\Drivers\SYSTEM\Inc;..\User;..\Application;..\Middlewares;..\FreeRTOS\include;..\FreeRTOS\portable\RVDS\ARM_CM4F;..\FreeRTOS</IncludePath>
+              <IncludePath>..\Drivers\BSP;..\Drivers\CMSIS\Device\ST\STM32F4xx\Include;..\Drivers\CMSIS\Include;..\Drivers\STM32F4xx_StdPeriph_Driver\inc;..\Drivers\SYSTEM;..\User;..\Application;..\Middlewares;..\FreeRTOS\include;..\FreeRTOS\portable\RVDS\ARM_CM4F;..\FreeRTOS</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -405,6 +405,11 @@
               <FileType>1</FileType>
               <FilePath>..\Application\tsk_eeprom.c</FilePath>
             </File>
+            <File>
+              <FileName>dev_config.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Application\dev_config.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -456,11 +461,6 @@
               <FilePath>..\Drivers\BSP\exti.c</FilePath>
             </File>
             <File>
-              <FileName>iic_driver.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\iic_driver.c</FilePath>
-            </File>
-            <File>
               <FileName>key.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\key.c</FilePath>
@@ -469,11 +469,6 @@
               <FileName>led.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\led.c</FilePath>
-            </File>
-            <File>
-              <FileName>my_rs485.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\BSP\my_rs485.c</FilePath>
             </File>
             <File>
               <FileName>pcf8574.c</FileName>
@@ -495,6 +490,16 @@
               <FileType>1</FileType>
               <FilePath>..\Drivers\BSP\wdg.c</FilePath>
             </File>
+            <File>
+              <FileName>i2c_driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\i2c_driver.c</FilePath>
+            </File>
+            <File>
+              <FileName>rs485_driver.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\BSP\rs485_driver.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -503,17 +508,12 @@
             <File>
               <FileName>delay.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\SYSTEM\Src\delay.c</FilePath>
+              <FilePath>..\Drivers\SYSTEM\delay.c</FilePath>
             </File>
             <File>
               <FileName>sys.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Drivers\SYSTEM\Src\sys.c</FilePath>
-            </File>
-            <File>
-              <FileName>usart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Drivers\SYSTEM\Src\usart.c</FilePath>
+              <FilePath>..\Drivers\SYSTEM\sys.c</FilePath>
             </File>
           </Files>
         </Group>

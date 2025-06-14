@@ -1,419 +1,103 @@
-/*
- * @Author: 23Elapse userszy@163.com
- * @Date: 2025-04-18 20:46:08
- * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-05-25 17:07:44
- * @FilePath: \Demo\Application\Src\api_eeprom.c
- * @Description: EEPROM 驱动实现
- *
- * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
+/**
+ * =====================================================================================
+ * @file        api_eeprom.c
+ * @brief       通用 AT24Cxx EEPROM 驱动实现 (已解耦)
+ * @author      23Elapse & Gemini
+ * @version     2.0 (Refactored)
+ * @date        2025-06-08
+ * =====================================================================================
  */
 #include "api_eeprom.h"
 #include "log_system.h"
-#include "rtos_abstraction.h"
+#include <string.h>
 
-const IIC_Ops_t IIC1_EEPROM = {
-    .dev_addr = EEPROM_ADDR,
-    .ReadByte = EEPROMReadByteFromReg,
-    .WriteByte = EEPROMWriteByteToReg};
+// EEPROM写操作后需要延时等待内部处理完成
+#define EEPROM_WRITE_DELAY_MS 5
 
-/**
- * @brief 从指定寄存器读取一个字节
- * @param reg 寄存器地址
- * @param val 读取的数据存储指针
- * @return IIC_Status 操作状态
- */
-IIC_Status EEPROMReadByteFromReg(uint8_t reg, uint8_t *val)
-{
+// 辅助函数，用于处理不同容量EEPROM的地址发送方式
+static I2C_Status_t EEPROM_SendAddress(I2C_Bus_t* bus, uint8_t dev_addr, uint16_t mem_addr) {
+    uint8_t addr_buf[2];
+    uint8_t len = 0;
 
-    if (!g_rtos_ops || !val)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Invalid RTOS ops or pointer");
-        return IIC_ERR_INIT;
+    // 对于大于2Kbit (256字节)的EEPROM，需要发送2个字节的地址
+    if (AT24C02_CAPACITY < 2048) { // AT24C02, AT24C04, AT24C08, AT24C16
+        // 地址位被编码到设备地址中
+        dev_addr |= (uint8_t)((mem_addr / 256) << 1);
+        addr_buf[0] = (uint8_t)(mem_addr & 0xFF);
+        len = 1;
+    } else { // AT24C32, AT24C64...
+        addr_buf[0] = (uint8_t)(mem_addr >> 8);   // 高地址
+        addr_buf[1] = (uint8_t)(mem_addr & 0xFF); // 低地址
+        len = 2;
     }
-
-    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to take mutex, timeout after 100ms");
-        return IIC_ERR_TIMEOUT;
-    }
-
-    uint8_t instance_id = IIC1;
-    IIC_Status status = IIC_Start(instance_id);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send start signal: %d", status);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-#if (EEPROM_TYPE > AT24C16)
-    status = IIC_WriteByte(instance_id, EEPROM_ADDR);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-    status = IIC_WriteByte(instance_id, reg >> 8);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write high address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-#else
-    uint8_t devAddr = EEPROM_ADDR | ((reg >> 7) & 0x0E);
-    status = IIC_WriteByte(instance_id, devAddr);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-#endif
-
-    status = IIC_WriteByte(instance_id, reg & 0xFF);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    status = IIC_Start(instance_id);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send repeated start: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    status = IIC_WriteByte(instance_id, EEPROM_ADDR | 0x01);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write read mode address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    status = IIC_ReadByte(instance_id, 0, val);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to read byte: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    IIC_Stop(instance_id);
-    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-    Log_Message(LOG_LEVEL_INFO, "[EEPROM] Read byte from reg 0x%02X: 0x%02X", reg, *val);
-    return IIC_OK;
+    
+    // 调用高层I2C接口写入地址
+    return g_i2c_bus_ops.Write(bus, dev_addr, addr_buf, len);
 }
 
-/**
- * @brief 向指定寄存器写入一个字节
- * @param reg 寄存器地址
- * @param val 要写入的数据
- * @return IIC_Status 操作状态
- */
-IIC_Status EEPROMWriteByteToReg(uint8_t reg, uint8_t val)
-{
-    if (!g_rtos_ops)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Invalid RTOS ops");
-        return IIC_ERR_INIT;
-    }
 
-    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to take mutex, timeout after 100ms");
-        return IIC_ERR_TIMEOUT;
-    }
+I2C_Status_t EEPROM_WriteByte(I2C_Bus_t* bus, uint8_t dev_addr, uint16_t mem_addr, uint8_t data) {
+    uint8_t write_buf[3];
+    uint8_t len = 0;
 
-    uint8_t instance_id = IIC1;
-    IIC_Status status = IIC_Start(instance_id);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send start signal: %d", status);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
+    // 构造写入序列: [MemAddr_High], [MemAddr_Low], [Data]
+    if (AT24C02_CAPACITY >= 2048) {
+        write_buf[len++] = (uint8_t)(mem_addr >> 8);
     }
+    write_buf[len++] = (uint8_t)(mem_addr & 0xFF);
+    write_buf[len++] = data;
 
-#if (EEPROM_TYPE > AT24C16)
-    status = IIC_WriteByte(instance_id, EEPROM_ADDR);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
+    I2C_Status_t status = g_i2c_bus_ops.Write(bus, dev_addr, write_buf, len);
+    if (status == I2C_OK) {
+        // 写操作后必须延时等待
+        g_rtos_ops->Delay(EEPROM_WRITE_DELAY_MS);
     }
-    status = IIC_WriteByte(instance_id, reg >> 8);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write high address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-#else
-    uint8_t devAddr = EEPROM_ADDR | ((reg >> 7) & 0x0E);
-    status = IIC_WriteByte(instance_id, devAddr);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-#endif
-
-    status = IIC_WriteByte(instance_id, reg & 0xFF);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    status = IIC_WriteByte(instance_id, val);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write byte: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    IIC_Stop(instance_id);
-    status = IIC_WaitWriteComplete(instance_id, devAddr);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Write operation timeout: %d", status);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-    Log_Message(LOG_LEVEL_INFO, "[EEPROM] Wrote byte 0x%02X to reg 0x%02X", val, reg);
-    return IIC_OK;
+    return status;
 }
 
-/**
- * @brief 从指定寄存器读取多字节
- * @param reg 起始寄存器地址
- * @param buffer 数据存储缓冲区
- * @param length 要读取的字节数
- * @return IIC_Status 操作状态
- */
-IIC_Status EEPROMReadBytesFromReg(uint8_t reg, uint8_t *buffer, uint16_t length)
-{
-    if (!g_rtos_ops || !buffer || length == 0 || (reg + length - 1) > EE_TYPE)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Invalid parameters or address overflow");
-        return IIC_ERR_INIT;
-    }
+I2C_Status_t EEPROM_ReadByte(I2C_Bus_t* bus, uint8_t dev_addr, uint16_t mem_addr, uint8_t* p_data) {
+    uint8_t addr_buf[2];
+    uint8_t len = 0;
 
-    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to take mutex, timeout after 100ms");
-        return IIC_ERR_TIMEOUT;
+    // 构造地址序列
+    if (AT24C02_CAPACITY >= 2048) {
+        addr_buf[len++] = (uint8_t)(mem_addr >> 8);
     }
+    addr_buf[len++] = (uint8_t)(mem_addr & 0xFF);
 
-    uint8_t instance_id = IIC1;
-    IIC_Status status = IIC_Start(instance_id);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send start signal: %d", status);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-#if (EEPROM_TYPE > AT24C16)
-    status = IIC_WriteByte(instance_id, EEPROM_ADDR);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-    status = IIC_WriteByte(instance_id, reg >> 8);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write high address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-#else
-    uint8_t devAddr = EEPROM_ADDR | ((reg >> 7) & 0x0E);
-    status = IIC_WriteByte(instance_id, devAddr);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-#endif
-
-    status = IIC_WriteByte(instance_id, reg & 0xFF);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d ,line is %d", status, __LINE__);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    status = IIC_Start(instance_id);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send repeated start: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    status = IIC_WriteByte(instance_id, EEPROM_ADDR | 0x01);
-    if (status != IIC_OK)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write read mode address: %d", status);
-        IIC_Stop(instance_id);
-        g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-        return status;
-    }
-
-    for (uint16_t i = 0; i < length; i++)
-    {
-        status = IIC_ReadByte(instance_id, (i == length - 1) ? 0 : 1, &buffer[i]);
-        if (status != IIC_OK)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to read byte %d: %d", i, status);
-            IIC_Stop(instance_id);
-            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-            return status;
-        }
-    }
-
-    IIC_Stop(instance_id);
-    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-    Log_Message(LOG_LEVEL_INFO, "[EEPROM] Read %d bytes from reg 0x%02X", length, reg);
-    return IIC_OK;
+    // 使用I2C的复合读写操作：先写入要读取的地址，然后不释放总线，再读取数据
+    return g_i2c_bus_ops.WriteAndRead(bus, dev_addr, addr_buf, len, p_data, 1);
 }
 
-/**
- * @brief 向指定寄存器写入多字节
- * @param reg 起始寄存器地址
- * @param buffer 要写入的数据缓冲区
- * @param length 要写入的字节数
- * @return IIC_Status 操作状态
- */
-IIC_Status EEPROMWriteBytesToReg(uint8_t reg, const uint8_t *buffer, uint16_t length)
-{
-    if (!g_rtos_ops || !buffer || length == 0 || (reg + length - 1) > EE_TYPE)
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Invalid parameters or address overflow");
-        return IIC_ERR_INIT;
+I2C_Status_t EEPROM_WritePage(I2C_Bus_t* bus, uint8_t dev_addr, uint16_t mem_addr, const uint8_t* data, uint16_t len) {
+    uint8_t write_buf[256 + 2]; // 最大页大小 + 2字节地址
+    uint8_t addr_len = 0;
+
+    // 构造地址
+    if (AT24C02_CAPACITY >= 2048) {
+        write_buf[addr_len++] = (uint8_t)(mem_addr >> 8);
     }
+    write_buf[addr_len++] = (uint8_t)(mem_addr & 0xFF);
+    
+    // 拷贝数据
+    memcpy(write_buf + addr_len, data, len);
 
-    if (!g_rtos_ops->SemaphoreTake(IIC1_config.mutex, 100))
-    {
-        Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to take mutex, timeout after 100ms");
-        return IIC_ERR_TIMEOUT;
+    I2C_Status_t status = g_i2c_bus_ops.Write(bus, dev_addr, write_buf, len + addr_len);
+    if (status == I2C_OK) {
+        g_rtos_ops->Delay(EEPROM_WRITE_DELAY_MS);
     }
+    return status;
+}
 
-    uint8_t instance_id = IIC1;
-    uint16_t bytes_written = 0;
+I2C_Status_t EEPROM_ReadBytes(I2C_Bus_t* bus, uint8_t dev_addr, uint16_t mem_addr, uint8_t* p_data, uint16_t len) {
+     uint8_t addr_buf[2];
+    uint8_t addr_len = 0;
 
-    while (bytes_written < length)
-    {
-        uint8_t page_offset = reg % EEPROM_PAGE_SIZE;
-        uint8_t bytes_in_page = EEPROM_PAGE_SIZE - page_offset;
-        uint8_t bytes_to_write = (length - bytes_written) < bytes_in_page ? (length - bytes_written) : bytes_in_page;
-
-        IIC_Status status = IIC_Start(instance_id);
-        if (status != IIC_OK)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to send start signal: %d", status);
-            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-            return status;
-        }
-
-#if (EEPROM_TYPE > AT24C16)
-        status = IIC_WriteByte(instance_id, EEPROM_ADDR);
-        if (status != IIC_OK)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
-            IIC_Stop(instance_id);
-            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-            return status;
-        }
-        status = IIC_WriteByte(instance_id, reg >> 8);
-        if (status != IIC_OK)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write high address: %d", status);
-            IIC_Stop(instance_id);
-            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-            return status;
-        }
-#else
-        uint8_t devAddr = EEPROM_ADDR | ((reg >> 7) & 0x0E);
-        status = IIC_WriteByte(instance_id, devAddr);
-        if (status != IIC_OK)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write device address: %d", status);
-            IIC_Stop(instance_id);
-            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-            return status;
-        }
-#endif
-
-        status = IIC_WriteByte(instance_id, reg & 0xFF);
-        if (status != IIC_OK)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write low address: %d, line is %d", status, __LINE__);
-            IIC_Stop(instance_id);
-            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-            return status;
-        }
-
-        for (uint8_t i = 0; i < bytes_to_write; i++)
-        {
-            status = IIC_WriteByte(instance_id, buffer[bytes_written + i]);
-            if (status != IIC_OK)
-            {
-                Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Failed to write byte %d: %d", bytes_written + i, status);
-                IIC_Stop(instance_id);
-                g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-                return status;
-            }
-        }
-
-        IIC_Stop(instance_id);
-        status = IIC_WaitWriteComplete(instance_id, devAddr);
-        if (status != IIC_OK)
-        {
-            Log_Message(LOG_LEVEL_ERROR, "[EEPROM] Write operation timeout: %d", status);
-            g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-            return status;
-        }
-
-        bytes_written += bytes_to_write;
-        reg += bytes_to_write;
+    // 构造地址
+    if (AT24C02_CAPACITY >= 2048) {
+        addr_buf[addr_len++] = (uint8_t)(mem_addr >> 8);
     }
-
-    g_rtos_ops->SemaphoreGive(IIC1_config.mutex);
-    Log_Message(LOG_LEVEL_INFO, "[EEPROM] Wrote %d bytes to reg 0x%02X", length, reg - length);
-    return IIC_OK;
+    addr_buf[addr_len++] = (uint8_t)(mem_addr & 0xFF);
+    
+    return g_i2c_bus_ops.WriteAndRead(bus, dev_addr, addr_buf, addr_len, p_data, len);
 }
