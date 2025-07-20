@@ -27,6 +27,7 @@ typedef enum
     DEVICE_TYPE_SPI_BUS,      // SPI 总线
     DEVICE_TYPE_SPI_FLASH,    // SPI Flash 设备 (作为一个完整的设备)
     DEVICE_TYPE_ESP32,        // ESP32 复合设备
+    DEVICE_TYPE_I2C_SLAVE,    // I2C 从设备 (如 PCF8574)
     DEVICE_TYPE_MAX
 } Device_Type_t;
 

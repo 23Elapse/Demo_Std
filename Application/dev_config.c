@@ -3,8 +3,8 @@
  * @file        dev_config.c
  * @brief       定义和初始化项目中所有硬件设备实例
  * @author      23Elapse & Gemini
- * @version     1.1
- * @date        2025-06-08
+ * @version     1.2 (Refactored)
+ * @date        2025-06-14
  * =====================================================================================
  */
 
@@ -12,6 +12,7 @@
 #include "stm32f4xx.h" // 需要外设基地址和GPIO定义
 #include "pch.h"
 #include "spi_flash.h"
+
 /*
  * =====================================================================================
  * 设备实例定义
@@ -26,7 +27,7 @@ Serial_Device_t g_uart_dev = {
     .mode = UART_MODE
 };
 
-Serial_Device_t g_rs485_serial = { 
+Serial_Device_t g_rs485_serial = {
     .instance = USART2, .tx_port = GPIOA, .tx_pin = GPIO_Pin_2,
     .rx_port = GPIOA, .rx_pin = GPIO_Pin_3, .de_port = GPIOA, .de_pin = GPIO_Pin_8,
     .baudrate = 9600, .af = GPIO_AF_USART2, .irqn = USART2_IRQn,
@@ -54,12 +55,28 @@ I2C_Bus_t g_i2c1_bus = {
     .mutex = NULL // Mutex 将在驱动初始化时创建
 };
 
-// --- SPI Flash 设备定义 ---
-// 假设 flash_config 在别处定义，如果它也是静态配置，也应移到此处
-//extern SPI_Flash_Config_t flash_config;
+// --- SPI Flash 配置定义 ---
+// SPI Flash 的硬件配置应在此处定义
+SPI_Flash_Config_t g_flash_config = {
+    .SPIx = SPI5,
+    .GPIO_Port = GPIOF,
+    .SPI_Clk = RCC_APB2Periph_SPI5,
+    .GPIO_Clk = RCC_AHB1Periph_GPIOF,
+    .CS_Pin = GPIO_Pin_6,
+    .SCK_Pin = GPIO_Pin_7,
+    .MISO_Pin = GPIO_Pin_8,
+    .MOSI_Pin = GPIO_Pin_9,
+    .address_mode = FLASH_4BYTE_MODE,
+    .mutex = NULL, // Mutex 将在驱动初始化时创建
+    .hw_ops = NULL, // 硬件操作回调将由驱动内部设置默认值
+    .hw_context = NULL // 硬件上下文将指向自身
+};
+
+// --- SPI Flash 设备实例定义 ---
+// SPI Flash 设备实例，包含其配置
 SPI_Flash_Device_t g_spi_flash_dev = {
-    .config = &flash_config,
-    .id = 0
+    .config = &g_flash_config, // 指向上面定义的配置
+    .chip_id = 0 // ID 将在初始化时读取
 };
 
 // --- 复合设备定义 ---

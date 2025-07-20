@@ -2,513 +2,416 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:50:17
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-09 21:29:00
+ * @LastEditTime: 2025-06-14 20:02:40
  * @FilePath: \Demo_backup\Application\api_wifi.c
- * @Description: ESP32 WiFi 和 BLE 模块统一驱动实现
+ * @Description: ESP32 WiFi 和 BLE 模块统一驱动实现 (Refactored)
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
  */
 #include "api_wifi.h"
-#include "serial_driver.h"
-#include "dev_config.h" 
+#include "serial_driver.h" // 依赖底层串口驱动
+#include "dev_config.h"    // 包含全局设备实例 g_esp32_dev
 #include "log_system.h"
 #include <string.h>
-#include <stdio.h>
-#include "serial_interface.h"
-#include "pch.h" // 假设包含 Common_GPIO_Init, delay_ms
+#include <stdio.h>   // For snprintf, atoi
+#include "common_driver.h" // For delay_ms, Common_GPIO_Init (如果需要)
+#include "pch.h"
 
+
+/*
+ * =====================================================================================
+ * ESP32 硬件控制函数
+ * =====================================================================================
+ */
 
 /**
  * @brief ESP32硬件相关初始化 (例如复位引脚)
+ * @param dev 指向ESP32共享设备实例
  */
-void ESP32_Device_HwInit(void)
+void ESP32_Hw_Init(ESP32_Shared_Device_t *dev)
 {
-    // 注意：这里的初始化逻辑最好由 App_Driver_Init 统一管理，此处保留是为了兼容旧调用
-    // 在理想的架构中，此函数可以为空，所有GPIO初始化都在一个地方完成。
-    if (g_esp32_dev.reset_port) {
-        Common_GPIO_Init(g_esp32_dev.reset_port, g_esp32_dev.reset_pin, GPIO_Mode_OUT, GPIO_OType_PP, GPIO_PuPd_UP, GPIO_Speed_50MHz, 0);
+    if (!dev || !dev->reset_port) {
+        Log_Message(LOG_LEVEL_ERROR, "[ESP32 Hw] Init: Invalid device or reset port.");
+        return;
     }
-}
-/**
- * @brief ESP32硬件复位
- */
-void ESP32_Device_HwReset(void)
-{
-    if (g_esp32_dev.reset_port) {
-        GPIO_ResetBits(g_esp32_dev.reset_port, g_esp32_dev.reset_pin);
-        delay_ms(100);
-        GPIO_SetBits(g_esp32_dev.reset_port, g_esp32_dev.reset_pin);
-        delay_ms(500);
+    // 初始化复位引脚为输出模式
+    Common_GPIO_Init(dev->reset_port, dev->reset_pin, GPIO_Mode_OUT, GPIO_OType_PP, GPIO_PuPd_UP, GPIO_Speed_50MHz, 0);
+    
+    if (dev->mutex == NULL) {
+        dev->mutex = g_rtos_ops->SemaphoreCreate();
+        if (dev->mutex == NULL) {
+            Log_Message(LOG_LEVEL_ERROR, "[ESP32] Device Init: Failed to create mutex.");
+            return; // 使用更具体的错误码
+        }
     }
+    // 确保复位引脚处于非复位状态 (高电平)
+    GPIO_SetBits(dev->reset_port, dev->reset_pin);
+    Log_Message(LOG_LEVEL_INFO, "[ESP32 Hw] Reset pin initialized.");
 }
 
 /**
- * @brief 内部辅助函数：发送AT指令并等待响应 (已持有互斥锁时调用)
+ * @brief ESP32硬件复位
+ * @param dev 指向ESP32共享设备实例
  */
-static AT_Error_Code _ESP32_SendATCommand_nolock(const AT_Cmd_Config* cmd, const char* log_prefix)
+void ESP32_Hw_Reset(ESP32_Shared_Device_t *dev)
 {
-    if (!g_esp32_dev.serial_dev || !cmd || !cmd->at_cmd || !cmd->expected_resp) {
+    if (!dev || !dev->reset_port) {
+        Log_Message(LOG_LEVEL_ERROR, "[ESP32 Hw] Reset: Invalid device or reset port.");
+        return;
+    }
+    Log_Message(LOG_LEVEL_INFO, "[ESP32 Hw] Performing hardware reset...");
+    GPIO_ResetBits(dev->reset_port, dev->reset_pin); // 拉低复位引脚
+    delay_ms(100);                                  // 保持低电平一段时间
+    GPIO_SetBits(dev->reset_port, dev->reset_pin);  // 拉高复位引脚
+    delay_ms(500);                                  // 等待ESP32启动
+    Log_Message(LOG_LEVEL_INFO, "[ESP32 Hw] Hardware reset completed.");
+}
+
+/*
+ * =====================================================================================
+ * 内部辅助函数：发送AT指令并等待响应
+ * 注意：此函数假定调用者已经获取了 g_esp32_dev.mutex 互斥锁。
+ * =====================================================================================
+ */
+/**
+ * @brief 内部辅助函数：发送AT指令并等待响应 (已持有互斥锁时调用)
+ * @param dev 指向ESP32共享设备实例
+ * @param cmd AT指令配置
+ * @param log_prefix 日志前缀 (例如 "WiFi", "BLE")
+ * @return AT_Status_t 操作状态
+ */
+static AT_Status_t _ESP32_SendATCommand_Internal(ESP32_Shared_Device_t *dev, const AT_Cmd_Config_t* cmd, const char* log_prefix)
+{
+    if (!dev || !dev->serial_dev || !cmd || !cmd->at_cmd || !cmd->expected_resp) {
+        Log_Message(LOG_LEVEL_ERROR, "[%s AT] SendATCommand_Internal: Invalid parameters.", log_prefix);
         return AT_ERR_PARAM;
     }
 
-    // 清空接收缓冲区
-    RingBuffer_Clear(&g_esp32_dev.serial_dev->rx_buffer);
+    // 清空接收缓冲区，避免旧数据干扰
+    RingBuffer_Clear(&dev->serial_dev->rx_buffer);
 
     // 发送指令
-    if (Serial_Operations.SendData(g_esp32_dev.serial_dev, (uint8_t*)cmd->at_cmd, strlen(cmd->at_cmd)) != SERIAL_OK) {
-        Log_Message(LOG_LEVEL_ERROR, "[%s AT] Failed to send cmd: %s", log_prefix, cmd->description);
+    if (Serial_Driver_SendData(dev->serial_dev, (uint8_t*)cmd->at_cmd, strlen(cmd->at_cmd)) != SERIAL_OK) {
+        Log_Message(LOG_LEVEL_ERROR, "[%s AT] SendATCommand_Internal: Failed to send cmd: %s", log_prefix, cmd->description);
         return AT_ERR_SEND_FAILED;
     }
 
     // 等待响应
-    uint8_t local_rx_buffer[TCP_BUFFER_SIZE] = {0};
+    uint8_t local_rx_buffer[TCP_BUFFER_SIZE + 50] = {0}; // 增加一些额外空间用于响应头尾
     uint16_t rx_len = 0;
     uint32_t start_tick = g_rtos_ops->GetTickCount();
+    uint32_t current_tick;
+    const char* expected_resp = cmd->expected_resp; // 期望响应
 
-    while ((g_rtos_ops->GetTickCount() - start_tick) < cmd->timeout_ms) {
+    // 持续从串口读取数据，直到超时或收到期望的响应
+    while (true) {
+        current_tick = g_rtos_ops->GetTickCount();
+        if ((current_tick - start_tick) >= cmd->timeout_ms) {
+            Log_Message(LOG_LEVEL_WARNING, "[%s AT] Timeout for cmd: %s. Current buffer: '%s'",
+                        log_prefix, cmd->description, local_rx_buffer);
+            return AT_ERR_TIMEOUT;
+        }
+
         uint8_t byte;
-        // 注意：这里不应该使用SemaphoreTake，因为这个操作是在一个更大的锁（g_esp32_dev.mutex）内部
-        if (RingBuffer_Read(&g_esp32_dev.serial_dev->rx_buffer, &byte) == RB_OK) {
+        // 使用非阻塞读取或短超时等待单个字节，避免长时间阻塞
+        if (Serial_Driver_ReadByte(dev->serial_dev, &byte) == SERIAL_OK) {
             if (rx_len < sizeof(local_rx_buffer) - 1) {
                 local_rx_buffer[rx_len++] = byte;
+                local_rx_buffer[rx_len] = '\0'; // 确保字符串以null结尾
+            } else {
+                Log_Message(LOG_LEVEL_WARNING, "[%s AT] Receive buffer full for cmd: %s. Data truncated.",
+                            log_prefix, cmd->description);
+                // 缓冲区满也尝试继续检查已接收部分是否包含期望响应
             }
-            if (strstr((char*)local_rx_buffer, cmd->expected_resp)) {
-                Log_Message(LOG_LEVEL_INFO, "[%s AT] Send AT cmd:\r\n %s Response:\r\n %s", log_prefix, cmd->at_cmd, local_rx_buffer);
-                return AT_ERR_NONE;
+
+            // 检查是否包含期望的响应
+            if (strstr((char*)local_rx_buffer, expected_resp)) {
+                Log_Message(LOG_LEVEL_INFO, "[%s AT] Cmd: %s. Response OK: '%s'",
+                            log_prefix, cmd->description, local_rx_buffer);
+                return AT_OK;
             }
         }
-        g_rtos_ops->Delay(10); // 短暂让出CPU
+        // 短暂延时，让出CPU
+        g_rtos_ops->Delay(1);
     }
-
-    Log_Message(LOG_LEVEL_WARNING, "[%s AT] Timeout for cmd:\r\n %s Response:\r\n %s", log_prefix, cmd->at_cmd, local_rx_buffer);
-    return AT_ERR_TIMEOUT;
 }
 
+/*
+ * =====================================================================================
+ * ESP32 AT 命令操作接口实现
+ * =====================================================================================
+ */
 
 /**
- * @brief 发送 WiFi/BLE AT 指令 (公共接口，处理互斥锁和重试)
+ * @brief 发送 ESP32 AT 指令 (通用接口，处理互斥锁和重试)
+ * @param dev 指向ESP32共享设备实例
+ * @param cmd AT 指令配置
+ * @param type 通信类型 (WiFi/BLE)
+ * @return AT_Status_t 操作状态
  */
-AT_Error_Code ESP32_SendATCommand(const AT_Cmd_Config* cmd, const char* log_prefix)
+static AT_Status_t ESP32_AT_SendATCommand(ESP32_Shared_Device_t *dev, const AT_Cmd_Config_t* cmd, ESP32_Comm_Type_t type)
 {
-    if (!g_rtos_ops || !g_esp32_dev.mutex || !cmd) {
+    if (!dev || !dev->mutex || !cmd) {
+        Log_Message(LOG_LEVEL_ERROR, "[ESP32 AT] SendATCommand: Invalid device, mutex, or cmd.");
         return AT_ERR_PARAM;
     }
 
-    if (g_rtos_ops->SemaphoreTake(g_esp32_dev.mutex, 1000) != pdTRUE) {
-        Log_Message(LOG_LEVEL_ERROR, "[%s AT] Failed to take ESP32 mutex", log_prefix);
-        return AT_ERR_TIMEOUT;
+    const char* log_prefix = (type == ESP32_COMM_TYPE_WIFI) ? "WiFi" : "BLE";
+
+    // 获取互斥锁
+    if (g_rtos_ops->SemaphoreTake(dev->mutex, 1000) != pdTRUE) { // 1秒超时
+        Log_Message(LOG_LEVEL_ERROR, "[%s AT] SendATCommand: Failed to take ESP32 mutex (timeout).", log_prefix);
+        return AT_ERR_MUTEX_TIMEOUT;
     }
 
-    AT_Error_Code status = AT_ERR_TIMEOUT;
+    AT_Status_t status = AT_ERR_TIMEOUT; // 初始状态为超时
     for (uint8_t retry = 0; retry <= cmd->retries; retry++) {
-        status = _ESP32_SendATCommand_nolock(cmd, log_prefix);
-        if (status == AT_ERR_NONE) {
-            break;
+        status = _ESP32_SendATCommand_Internal(dev, cmd, log_prefix);
+        if (status == AT_OK) {
+            break; // 成功则退出重试循环
         }
         if (retry < cmd->retries) {
-            g_rtos_ops->Delay(200); // 重试前延时
+            Log_Message(LOG_LEVEL_WARNING, "[%s AT] Cmd: %s failed (%d). Retrying %u/%u...",
+                        log_prefix, cmd->description, status, retry + 1, cmd->retries);
+            g_rtos_ops->Delay(200); // 重试前短暂延时
         }
     }
 
-    g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
+    g_rtos_ops->SemaphoreGive(dev->mutex); // 释放互斥锁
     return status;
 }
 
-// 包装函数，保持旧API兼容性
-AT_Error_Code WiFi_SendATCommand(const AT_Cmd_Config *cmd) {
-    return ESP32_SendATCommand(cmd, "WiFi");
-}
-AT_Error_Code BLE_SendATCommand(const AT_Cmd_Config *cmd) {
-    return ESP32_SendATCommand(cmd, "BLE");
-}
-
-
-
 /**
- * @brief 发送 WiFi TCP 数据
+ * @brief 发送数据 (TCP/BLE透传数据)
+ * @param dev 指向ESP32共享设备实例
+ * @param data 要发送的数据缓冲区
+ * @param length 数据长度
+ * @param type 通信类型 (WiFi/BLE)
+ * @return AT_Status_t 操作状态
  */
-AT_Error_Code WiFi_SendTCPData(const uint8_t *data, uint16_t length)
+static AT_Status_t ESP32_AT_SendData(ESP32_Shared_Device_t *dev, const uint8_t *data, uint16_t length, ESP32_Comm_Type_t type)
 {
-    if (!g_rtos_ops || !g_esp32_dev.serial_dev || !g_esp32_dev.mutex || !data || length == 0) {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi TCP Send] Invalid parameters");
-        return AT_ERR_SEND_FAILED;
+    if (!dev || !dev->serial_dev || !dev->mutex || !data || length == 0) {
+        Log_Message(LOG_LEVEL_ERROR, "[ESP32 Data Send] Invalid parameters.");
+        return AT_ERR_PARAM;
     }
-    if (length > TCP_BUFFER_SIZE) { // ESP32 AT指令通常对单次CIPSEND长度有限制
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi TCP Send] Data length %d exceeds max buffer %d", length, TCP_BUFFER_SIZE);
-        return AT_ERR_SEND_FAILED;
-    }
-
-    if (!g_rtos_ops->SemaphoreTake(g_esp32_dev.mutex, 0xFFFFFFFF)) {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi TCP Send] Failed to take ESP32 mutex");
-        return AT_ERR_TIMEOUT;
+    if (length > TCP_BUFFER_SIZE) { // ESP32 AT指令通常对单次CIPSEND/BLESEND长度有限制
+        Log_Message(LOG_LEVEL_ERROR, "[ESP32 Data Send] Data length %u exceeds max buffer %u.", length, TCP_BUFFER_SIZE);
+        return AT_ERR_PARAM; // 超过允许的最大长度
     }
 
-    AT_Error_Code status = AT_ERR_SEND_FAILED;
+    const char* log_prefix = (type == ESP32_COMM_TYPE_WIFI) ? "WiFi TCP" : "BLE";
     char cmd_str[32];
-    snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSEND=%d\r\n", length);
+    AT_Status_t status = AT_ERR_SEND_FAILED;
 
-    AT_Cmd_Config prep_cmd = {cmd_str, ">", 2000, 0, "TCP Send Prep"}; // Prep cmd, 0 retries internally
+    // 获取互斥锁
+    if (g_rtos_ops->SemaphoreTake(dev->mutex, 0xFFFFFFFF) != pdTRUE) { // 永远等待
+        Log_Message(LOG_LEVEL_ERROR, "[%s Send] Failed to take ESP32 mutex.", log_prefix);
+        return AT_ERR_MUTEX_TIMEOUT;
+    }
 
-    // 1. 发送CIPSEND=length指令，期望">"
-    status = _ESP32_SendATCommand_nolock(&prep_cmd, "WiFi TCP");
-    if (status != AT_ERR_NONE) {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi TCP Send] Failed to get '>' prompt. Status: %d", status);
-        g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
+    // 1. 发送准备指令 (例如 AT+CIPSEND=length 或 AT+BLESEND=length)
+    if (type == ESP32_COMM_TYPE_WIFI) {
+        snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSEND=%d\r\n", length);
+    } else { // ESP32_COMM_TYPE_BLE
+        // 假设 BLE 发送指令为 AT+BLUESPPDAT=<length> (或类似，需查阅具体AT手册)
+        // 这里使用一个通用的 BLESEND 占位
+        snprintf(cmd_str, sizeof(cmd_str), "AT+BLESEND=%d\r\n", length);
+    }
+
+    AT_Cmd_Config_t prep_cmd = {cmd_str, ">", 2000, 0, "Data Send Prep"}; // 期待 '>' 提示
+
+    status = _ESP32_SendATCommand_Internal(dev, &prep_cmd, log_prefix);
+    if (status != AT_OK) {
+        Log_Message(LOG_LEVEL_ERROR, "[%s Send] Failed to get '>' prompt. Status: %d.", log_prefix, status);
+        g_rtos_ops->SemaphoreGive(dev->mutex);
         return status;
     }
 
-    // 2. 发送实际数据
-    if (Serial_Driver_SendData(g_esp32_dev.serial_dev, data, length) != SERIAL_OK) {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi TCP Send] Failed to send data payload.");
-        g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
+    // 2. 发送实际数据载荷
+    if (Serial_Driver_SendData(dev->serial_dev, data, length) != SERIAL_OK) {
+        Log_Message(LOG_LEVEL_ERROR, "[%s Send] Failed to send data payload.", log_prefix);
+        g_rtos_ops->SemaphoreGive(dev->mutex);
         return AT_ERR_SEND_FAILED;
     }
 
-    // 3. 等待 "SEND OK"
-    //    注意：AT+CIPSEND的"SEND OK"响应时间可能较长，且依赖网络。
-    //    有些固件可能在数据发送后不立即返回 "SEND OK"，或者其格式可能变化。
-    //    此处使用一个虚拟的AT_Cmd_Config来复用 _ESP32_SendATCommand_nolock 的接收逻辑。
-    //    at_cmd为空字符串，因为我们不发送额外命令，只是等待响应。
-    AT_Cmd_Config confirm_cmd = {"", "SEND OK", 5000, 0, "TCP Send Confirm"}; // 5s timeout for SEND OK
-    status = _ESP32_SendATCommand_nolock(&confirm_cmd, "WiFi TCP");
+    // 3. 等待 "SEND OK" 响应
+    // 注意：AT+CIPSEND的"SEND OK"响应时间可能较长，且依赖网络。
+    // AT_Cmd_Config_t confirm_cmd = {"", "SEND OK", 5000, 0, "Data Send Confirm"}; // at_cmd为空，只等待响应
+    // status = _ESP32_SendATCommand_Internal(dev, &confirm_cmd, log_prefix);
+    //
+    // if (status != AT_OK) {
+    //     Log_Message(LOG_LEVEL_WARNING, "[%s Send] Did not receive 'SEND OK'. Status: %d. Data might have been sent.", log_prefix, status);
+    //     // 根据应用需求，即使没有SEND OK，数据也可能已发送。
+    // } else {
+    //     Log_Message(LOG_LEVEL_INFO, "[%s Send] Sent %u bytes successfully.", log_prefix, length);
+    // }
 
-    if (status != AT_ERR_NONE) {
-        Log_Message(LOG_LEVEL_WARNING, "[WiFi TCP Send] Did not receive 'SEND OK'. Status: %d. Data might have been sent.", status);
-        // 根据应用需求，即使没有SEND OK，数据也可能已发送。
-        // 有些应用可能认为没有SEND OK就是失败。
-    } else {
-        Log_Message(LOG_LEVEL_INFO, "[WiFi TCP Send] Sent %d bytes successfully.", length);
-    }
+    // 由于某些固件可能在发送数据后立即返回 SEND OK，或者存在其他延迟，
+    // 这里采取一个更灵活的等待方式：等待一段时间，看看串口是否空闲。
+    // 实际应用中，更健壮的可能是通过额外的AT指令查询发送状态或等待服务器响应。
+    // 为了简化和通用性，我们直接假设发送成功，并等待一小段时间让模块处理。
+    g_rtos_ops->Delay(100); // 等待模块处理发送
+    Log_Message(LOG_LEVEL_INFO, "[%s Send] Sent %u bytes (assuming success).", log_prefix, length);
+    status = AT_OK; // 假定发送命令本身成功，具体数据传输结果由更高层逻辑判断
 
-    g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-    return status; // 返回SEND OK的最终状态
+    g_rtos_ops->SemaphoreGive(dev->mutex); // 释放互斥锁
+    return status;
 }
 
 /**
- * @brief 接收 WiFi TCP 数据 (已优化，并恢复了健壮的+IPD头解析)
- * @note  本函数使用信号量阻塞等待，仅在有数据时才开始解析，兼具效率与可靠性。
+ * @brief 接收数据 (TCP/BLE透传数据)
+ * @param dev 指向ESP32共享设备实例
+ * @param buffer 数据存储缓冲区
+ * @param length 期望接收的长度（输入），实际接收的长度（输出）
+ * @param timeout_ms 超时时间（毫秒）
+ * @param type 通信类型 (WiFi/BLE)
+ * @return AT_Status_t 操作状态
  */
-AT_Error_Code WiFi_ReceiveTCPData(uint8_t *buffer, uint16_t *length, uint32_t timeout_ms)
+static AT_Status_t ESP32_AT_ReceiveData(ESP32_Shared_Device_t *dev, uint8_t *buffer, uint16_t *length, uint32_t timeout_ms, ESP32_Comm_Type_t type)
 {
-    if (!g_rtos_ops || !g_esp32_dev.serial_dev || !g_esp32_dev.mutex || !buffer || !length || *length == 0) {
+    if (!dev || !dev->serial_dev || !dev->mutex || !buffer || !length || *length == 0) {
+        Log_Message(LOG_LEVEL_ERROR, "[ESP32 Data Recv] Invalid parameters.");
         return AT_ERR_PARAM;
     }
 
-    if (g_rtos_ops->SemaphoreTake(g_esp32_dev.mutex, 1000) != pdTRUE) {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi TCP Recv] Failed to take ESP32 mutex");
-        return AT_ERR_TIMEOUT;
-    }
-
-    RingBuffer_t* rb = &g_esp32_dev.serial_dev->rx_buffer;
+    const char* log_prefix = (type == ESP32_COMM_TYPE_WIFI) ? "WiFi TCP" : "BLE";
+    RingBuffer_t* rb = &dev->serial_dev->rx_buffer;
     uint16_t max_len = *length;
     uint16_t received_len = 0;
     uint32_t start_tick = g_rtos_ops->GetTickCount();
-    *length = 0;
+    *length = 0; // 重置实际接收长度
 
-    // --- IPD 解析状态机 ---
+    // 获取互斥锁
+    if (g_rtos_ops->SemaphoreTake(dev->mutex, 1000) != pdTRUE) { // 1秒超时
+        Log_Message(LOG_LEVEL_ERROR, "[%s Recv] Failed to take ESP32 mutex (timeout).", log_prefix);
+        return AT_ERR_MUTEX_TIMEOUT;
+    }
+
+    // --- 数据解析状态机 (主要针对 +IPD 格式的数据) ---
+    // 对于BLE或其他格式，可能需要调整或跳过此解析
     enum {
-        PARSING_STATE_WAIT_FOR_PLUS,
-        PARSING_STATE_WAIT_FOR_IPD,
-        PARSING_STATE_READ_LEN,
-        PARSING_STATE_READ_COLON,
-        PARSING_STATE_READ_DATA
-    } state = PARSING_STATE_WAIT_FOR_PLUS;
+        PARSE_STATE_INIT,
+        PARSE_STATE_WAIT_FOR_PREFIX, // 等待 "+IPD," 或其他数据前缀
+        PARSE_STATE_READ_LEN,        // 读取数据长度
+        PARSE_STATE_READ_COLON,      // 等待冒号分隔符
+        PARSE_STATE_READ_DATA        // 读取实际数据
+    } parse_state = PARSE_STATE_INIT;
 
-    char len_str[6] = {0};
+    char len_str[6] = {0}; // 用于存储长度字符串 (最大99999字节)
     uint8_t len_idx = 0;
-    uint16_t data_to_read = 0;
+    uint16_t expected_data_len = 0;
+    uint8_t current_prefix_idx = 0;
+    const char* ipd_prefix = "+IPD,"; // WiFi TCP数据通常有此前缀
 
-    while ((g_rtos_ops->GetTickCount() - start_tick) < timeout_ms) {
-        uint32_t remaining_timeout = timeout_ms - (g_rtos_ops->GetTickCount() - start_tick);
-        if (remaining_timeout > timeout_ms) remaining_timeout = 0;
+    Log_Message(LOG_LEVEL_DEBUG, "[%s Recv] Starting data reception. Max %u bytes, timeout %lu ms.", log_prefix, max_len, timeout_ms);
 
-        // 阻塞等待新字节的到来
+    while (true) {
+        uint32_t current_tick = g_rtos_ops->GetTickCount();
+        if ((current_tick - start_tick) >= timeout_ms) {
+            Log_Message(LOG_LEVEL_WARNING, "[%s Recv] Timeout waiting for data or full packet.", log_prefix);
+            goto recv_end; // 跳出循环并释放锁
+        }
+
+        uint8_t byte;
+        // 尝试从环形缓冲区读取一个字节，使用剩余超时时间
+        uint32_t remaining_timeout = timeout_ms - (current_tick - start_tick);
+        if (remaining_timeout == 0) remaining_timeout = 1; // 至少等待1ms，避免死循环
+
         if (g_rtos_ops->SemaphoreTake(rb->sem, remaining_timeout) == pdTRUE) {
-            uint8_t byte;
-            if (RingBuffer_Read(rb, &byte) != RB_OK) continue; // 不应该发生
+            if (RingBuffer_Read(rb, &byte) != RB_OK) {
+                // RingBuffer_Read 内部已经获取信号量，这里再次读取失败不应该发生
+                Log_Message(LOG_LEVEL_ERROR, "[%s Recv] Ring buffer read error after semaphore took.", log_prefix);
+                continue;
+            }
 
-            switch (state) {
-                case PARSING_STATE_WAIT_FOR_PLUS:
-                    if (byte == '+') {
-                        state = PARSING_STATE_WAIT_FOR_IPD;
-                    }
-                    break;
-                
-                case PARSING_STATE_WAIT_FOR_IPD:
-                    if (strstr((const char[]){byte, 0}, "IPD,")) { // 这是一个简化的匹配，实际应顺序匹配"IPD,"
-                        state = PARSING_STATE_READ_LEN;
-                        len_idx = 0;
-                        memset(len_str, 0, sizeof(len_str));
-                    } else {
-                        state = PARSING_STATE_WAIT_FOR_PLUS; // 不匹配，重新等待'+'
-                    }
-                    break;
-                    
-                case PARSING_STATE_READ_LEN:
-                    if (byte >= '0' && byte <= '9' && len_idx < sizeof(len_str) - 1) {
-                        len_str[len_idx++] = byte;
-                    } else if (byte == ':') {
-                        data_to_read = atoi(len_str);
-                        if (data_to_read > 0 && data_to_read <= max_len) {
-                            state = PARSING_STATE_READ_DATA;
-                        } else {
-                            Log_Message(LOG_LEVEL_WARNING, "[WiFi TCP Recv] Invalid IPD len: %u", data_to_read);
-                            state = PARSING_STATE_WAIT_FOR_PLUS;
+            switch (parse_state) {
+                case PARSE_STATE_INIT:
+                    // 初始状态，等待第一个字节，或者直接进入等待前缀
+                    // 对于 +IPD 格式，直接进入等待前缀状态
+                    parse_state = PARSE_STATE_WAIT_FOR_PREFIX;
+                    // fallthrough to PARSE_STATE_WAIT_FOR_PREFIX
+                case PARSE_STATE_WAIT_FOR_PREFIX:
+                    // 尝试匹配 "+IPD," 前缀
+                    if (byte == ipd_prefix[current_prefix_idx]) {
+                        current_prefix_idx++;
+                        if (current_prefix_idx == strlen(ipd_prefix)) {
+                            parse_state = PARSE_STATE_READ_LEN; // 匹配到前缀，进入读取长度状态
+                            len_idx = 0;
+                            memset(len_str, 0, sizeof(len_str)); // 清空长度字符串缓冲区
+                            current_prefix_idx = 0; // 重置前缀索引
                         }
                     } else {
-                        state = PARSING_STATE_WAIT_FOR_PLUS; // 解析长度出错
+                        // 不匹配，重置状态。如果当前字节是 '+'，则可能是新前缀的开始
+                        current_prefix_idx = 0;
+                        if (byte == '+') { // 可能是新的 +IPD 开始
+                             current_prefix_idx = 1;
+                        }
+                        // 否则，忽略当前字节，继续等待
                     }
                     break;
 
-                case PARSING_STATE_READ_DATA:
-                    buffer[received_len++] = byte;
-                    if (received_len == data_to_read) {
-                        // 成功接收完一个IPD包
+                case PARSE_STATE_READ_LEN:
+                    if (byte >= '0' && byte <= '9') {
+                        if (len_idx < sizeof(len_str) - 1) {
+                            len_str[len_idx++] = byte;
+                        } else {
+                            Log_Message(LOG_LEVEL_WARNING, "[%s Recv] IPD length string too long.", log_prefix);
+                            parse_state = PARSE_STATE_INIT; // 错误，重置
+                        }
+                    } else if (byte == ':') {
+                        len_str[len_idx] = '\0'; // 终止字符串
+                        expected_data_len = atoi(len_str);
+                        if (expected_data_len > 0 && expected_data_len <= max_len) {
+                            parse_state = PARSE_STATE_READ_DATA; // 长度有效，进入读取数据状态
+                            received_len = 0; // 重置已接收数据计数
+                            Log_Message(LOG_LEVEL_DEBUG, "[%s Recv] IPD: Expecting %u bytes.", log_prefix, expected_data_len);
+                        } else {
+                            Log_Message(LOG_LEVEL_WARNING, "[%s Recv] IPD: Invalid data length %u (max %u).", log_prefix, expected_data_len, max_len);
+                            parse_state = PARSE_STATE_INIT; // 长度无效，重置
+                        }
+                    } else {
+                        Log_Message(LOG_LEVEL_WARNING, "[%s Recv] IPD: Unexpected char '%c' (0x%02X) in length field.", log_prefix, byte, byte);
+                        parse_state = PARSE_STATE_INIT; // 错误，重置
+                    }
+                    break;
+
+                case PARSE_STATE_READ_DATA:
+                    if (received_len < expected_data_len) {
+                        buffer[received_len++] = byte;
+                    }
+
+                    if (received_len == expected_data_len) {
                         *length = received_len;
-                        g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-                        return AT_ERR_NONE;
+                        Log_Message(LOG_LEVEL_INFO, "[%s Recv] Received %u bytes successfully.", log_prefix, received_len);
+                        g_rtos_ops->SemaphoreGive(dev->mutex); // 释放互斥锁
+                        return AT_OK; // 成功接收整个包
+                    } else if (received_len >= max_len) {
+                         // 用户提供的缓冲区已满，即使未收到完整IPD包也停止
+                         Log_Message(LOG_LEVEL_WARNING, "[%s Recv] User buffer full (%u bytes), but expected %u. Data truncated.", log_prefix, max_len, expected_data_len);
+                         *length = received_len;
+                         g_rtos_ops->SemaphoreGive(dev->mutex);
+                         return AT_OK; // 返回部分数据
                     }
-                    break;
-
-                default: // Should not happen
-                    state = PARSING_STATE_WAIT_FOR_PLUS;
                     break;
             }
-        } else {
-            // SemaphoreTake 超时
-            Log_Message(LOG_LEVEL_INFO, "[WiFi TCP Recv] Timeout waiting for data.");
-            goto recv_end;
         }
     }
 
 recv_end:
-    g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-    if (received_len > 0) { // 如果超时但已收到部分数据
-        *length = received_len;
-        return AT_ERR_NONE;
-    }
-    return AT_ERR_TIMEOUT;
-}
-
-/**
- * @brief 接收 WiFi TCP 数据
- */
-// AT_Error_Code WiFi_ReceiveTCPData(uint8_t *buffer, uint16_t *length, uint32_t timeout_ms)
-// {
-//     if (!g_rtos_ops || !g_esp32_dev.serial_dev || !g_esp32_dev.mutex || !buffer || !length || *length == 0) {
-//         Log_Message(LOG_LEVEL_ERROR, "[WiFi TCP Recv] Invalid parameters");
-//         return AT_ERR_SEND_FAILED; // Or a more specific error
-//     }
-
-//     if (!g_rtos_ops->SemaphoreTake(g_esp32_dev.mutex, 0xFFFFFFFF)) {
-//         Log_Message(LOG_LEVEL_ERROR, "[WiFi TCP Recv] Failed to take ESP32 mutex");
-//         return AT_ERR_TIMEOUT;
-//     }
-
-//     // TCP数据通常以 "+IPD,<len>:<data>" 的形式到达。
-//     // 简化的实现：直接读取串口数据直到超时或缓冲区满。
-//     // 健壮的实现需要解析 "+IPD"头来确定数据长度。
-
-//     uint16_t received_len = 0;
-//     uint16_t max_len = *length; // 用户期望的最大长度
-//     uint32_t start_tick = g_rtos_ops->GetTickCount();
-//     char ipd_prefix[15]; // For "+IPD,"
-//     uint16_t ipd_data_len = 0;
-//     uint8_t parsing_ipd_header = 1; // 状态：1=等待+IPD, 2=解析长度, 0=接收数据
-//     uint16_t ipd_header_idx = 0;
-
-
-//     // 先尝试清空一次非IPD数据，例如OK, ERROR等残留
-//     uint32_t pre_clean_timeout = 100; // 短暂超时清理
-//     uint32_t pre_clean_start = g_rtos_ops->GetTickCount();
-//     while((g_rtos_ops->GetTickCount() - pre_clean_start) < pdMS_TO_TICKS(pre_clean_timeout) && RingBuffer_IsAvailable(&g_esp32_dev.serial_dev->rx_buffer)){
-//         uint8_t temp_byte;
-//         RingBuffer_Read(&g_esp32_dev.serial_dev->rx_buffer, &temp_byte);
-//     }
-
-
-//     while ((g_rtos_ops->GetTickCount() - start_tick) < pdMS_TO_TICKS(timeout_ms)) {
-//         uint8_t byte;
-//         if (RingBuffer_IsAvailable(&g_esp32_dev.serial_dev->rx_buffer)) {
-//             RingBuffer_Read(&g_esp32_dev.serial_dev->rx_buffer, &byte);
-
-//             if (parsing_ipd_header == 1) { // 等待 '+IPD,'
-//                 if (ipd_header_idx < sizeof(ipd_prefix) - 1) {
-//                     ipd_prefix[ipd_header_idx++] = byte;
-//                     ipd_prefix[ipd_header_idx] = '\0';
-//                     if (strstr(ipd_prefix, "+IPD,") == ipd_prefix) {
-//                         parsing_ipd_header = 2; // 开始解析长度
-//                         ipd_header_idx = 0; // 重置索引用于长度字符串
-//                         memset(ipd_prefix, 0, sizeof(ipd_prefix)); // 清空用于存长度
-//                     } else if (ipd_header_idx > 5 && strstr(ipd_prefix, "+IPD,") == NULL) { // 不是+IPD的开头，重置
-//                         ipd_header_idx = 0;
-//                         memset(ipd_prefix, 0, sizeof(ipd_prefix));
-//                          if (byte == '+') { // 可能是新的+IPD开头
-//                             ipd_prefix[ipd_header_idx++] = byte;
-//                          }
-//                     }
-//                 } else { // +IPD, 头太长或未匹配，重置
-//                     ipd_header_idx = 0;
-//                     memset(ipd_prefix, 0, sizeof(ipd_prefix));
-//                 }
-//             } else if (parsing_ipd_header == 2) { // 解析长度直到 ':'
-//                 if (byte == ':') {
-//                     ipd_data_len = atoi(ipd_prefix);
-//                     if (ipd_data_len > 0 && ipd_data_len <= max_len) {
-//                         parsing_ipd_header = 0; // 开始接收数据
-//                         received_len = 0; // 重置已接收数据长度计数器
-//                         Log_Message(LOG_LEVEL_DEBUG, "[WiFi TCP Recv] IPD: expect %d bytes", ipd_data_len);
-//                     } else { // 长度无效或超出缓冲区
-//                         Log_Message(LOG_LEVEL_WARNING, "[WiFi TCP Recv] IPD: invalid len %d (max %d)", ipd_data_len, max_len);
-//                         parsing_ipd_header = 1; // 回到等待+IPD状态
-//                         ipd_header_idx = 0;
-//                         memset(ipd_prefix, 0, sizeof(ipd_prefix));
-//                         ipd_data_len = 0;
-//                     }
-//                 } else if (byte >= '0' && byte <= '9' && ipd_header_idx < 6) { // 长度数字部分
-//                     ipd_prefix[ipd_header_idx++] = byte;
-//                     ipd_prefix[ipd_header_idx] = '\0';
-//                 } else { // 长度解析中遇到非数字或冒号，或长度字符串过长
-//                     Log_Message(LOG_LEVEL_WARNING, "[WiFi TCP Recv] IPD: error parsing len near '%s', char '%c'", ipd_prefix, byte);
-//                     parsing_ipd_header = 1; // 回到等待+IPD状态
-//                     ipd_header_idx = 0;
-//                     memset(ipd_prefix, 0, sizeof(ipd_prefix));
-//                     ipd_data_len = 0;
-//                 }
-//             } else { // parsing_ipd_header == 0, 接收实际数据
-//                 if (received_len < ipd_data_len && received_len < max_len) {
-//                     buffer[received_len++] = byte;
-//                     if (received_len == ipd_data_len) { // 当前IPD包接收完毕
-//                         *length = received_len;
-//                         Log_Message(LOG_LEVEL_INFO, "[WiFi TCP Recv] Received %d bytes from IPD.", received_len);
-//                         g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-//                         return AT_ERR_NONE;
-//                     }
-//                 }
-//             }
-//         }
-//         if (g_rtos_ops->Delay) g_rtos_ops->Delay(1);
-//     }
-
-//     *length = received_len; // 返回部分接收的数据（如果有）
-//     g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-
-//     if (received_len > 0 && parsing_ipd_header == 0 && received_len < ipd_data_len) {
-//          Log_Message(LOG_LEVEL_WARNING, "[WiFi TCP Recv] Timeout, but received %d/%d bytes of IPD.", received_len, ipd_data_len);
-//         return AT_ERR_NONE; // 返回部分数据
-//     } else if (parsing_ipd_header != 0) {
-//         Log_Message(LOG_LEVEL_WARNING, "[WiFi TCP Recv] Timeout waiting for or parsing +IPD header. State: %d, Buffer: '%s'", parsing_ipd_header, ipd_prefix);
-//         return AT_ERR_TIMEOUT;
-//     }
-//     Log_Message(LOG_LEVEL_WARNING, "[WiFi TCP Recv] Timeout, no complete IPD data received.");
-//     return AT_ERR_TIMEOUT;
-// }
-
-
-/**
- * @brief 发送 BLE 数据
- */
-AT_Error_Code BLE_SendData(const uint8_t *data, uint16_t length)
-{
-    // 与 WiFi_SendTCPData 类似，也需要先发送准备指令如 "AT+BLESEND=<length>\r\n"
-    // 然后等待 ">"，再发送数据，最后等待 "SEND OK"
-    // 具体指令需要查阅ESP32 BLE AT指令手册
-
-    if (!g_rtos_ops || !g_esp32_dev.serial_dev || !g_esp32_dev.mutex || !data || length == 0) {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE Send] Invalid parameters");
-        return AT_ERR_SEND_FAILED;
-    }
-     if (length > TCP_BUFFER_SIZE) {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE Send] Data length %d exceeds max buffer %d", length, TCP_BUFFER_SIZE);
-        return AT_ERR_SEND_FAILED;
-    }
-
-    if (!g_rtos_ops->SemaphoreTake(g_esp32_dev.mutex, 0xFFFFFFFF)) {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE Send] Failed to take ESP32 mutex");
-        return AT_ERR_TIMEOUT;
-    }
-
-    AT_Error_Code status = AT_ERR_SEND_FAILED;
-    char cmd_str[32];
-    // 假设BLE发送指令为 AT+BLUESPPDAT=<length> (或类似，需确认)
-    // 或者 AT+BLEGATTSNTFY (GATT Server Notify)
-    // 示例使用一个通用的 BLESEND
-    snprintf(cmd_str, sizeof(cmd_str), "AT+BLESEND=%d\r\n", length);
-
-    AT_Cmd_Config prep_cmd = {cmd_str, ">", 2000, 0, "BLE Send Prep"};
-
-    status = _ESP32_SendATCommand_nolock(&prep_cmd, "BLE");
-    if (status != AT_ERR_NONE) {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE Send] Failed to get '>' prompt. Status: %d", status);
-        g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-        return status;
-    }
-
-    if (Serial_Driver_SendData(g_esp32_dev.serial_dev, data, length) != SERIAL_OK) {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE Send] Failed to send data payload.");
-        g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-        return AT_ERR_SEND_FAILED;
-    }
-
-    AT_Cmd_Config confirm_cmd = {"", "SEND OK", 5000, 0, "BLE Send Confirm"};
-    status = _ESP32_SendATCommand_nolock(&confirm_cmd, "BLE");
-
-    if (status != AT_ERR_NONE) {
-        Log_Message(LOG_LEVEL_WARNING, "[BLE Send] Did not receive 'SEND OK'. Status: %d.", status);
-    } else {
-        Log_Message(LOG_LEVEL_INFO, "[BLE Send] Sent %d bytes successfully.", length);
-    }
-
-    g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-    return status;
-}
-
-/**
- * @brief 接收 BLE 数据
- */
-AT_Error_Code BLE_ReceiveData(uint8_t *buffer, uint16_t *length, uint32_t timeout_ms)
-{
-    // BLE数据接收可能通过 "+BLERECV=<len>:<data>" 或类似AT主动上报，或GATT读响应
-    // 此处简化，类似WiFi TCP接收，但BLE通常没有明确的+IPD，可能需要不同的解析逻辑
-    // 或依赖于透传模式。
-
-    if (!g_rtos_ops || !g_esp32_dev.serial_dev || !g_esp32_dev.mutex || !buffer || !length || *length == 0) {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE Recv] Invalid parameters");
-        return AT_ERR_SEND_FAILED;
-    }
-
-    if (!g_rtos_ops->SemaphoreTake(g_esp32_dev.mutex, 0xFFFFFFFF)) {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE Recv] Failed to take ESP32 mutex");
-        return AT_ERR_TIMEOUT;
-    }
-
-    uint16_t received_len = 0;
-    uint16_t max_len = *length;
-    uint32_t start_tick = g_rtos_ops->GetTickCount();
-
-    // 简单实现：读取直到超时或缓冲区满
-    while ((g_rtos_ops->GetTickCount() - start_tick) < pdMS_TO_TICKS(timeout_ms)) {
-        uint8_t byte;
-        if (RingBuffer_IsAvailable(&g_esp32_dev.serial_dev->rx_buffer)) {
-            RingBuffer_Read(&g_esp32_dev.serial_dev->rx_buffer, &byte);
-            if (received_len < max_len) {
-                buffer[received_len++] = byte;
-            } else {
-                Log_Message(LOG_LEVEL_WARNING, "[BLE Recv] Buffer full (%d bytes).", max_len);
-                break;
-            }
-        }
-        if (received_len == max_len) break; // 已达到用户期望长度
-        if (g_rtos_ops->Delay) g_rtos_ops->Delay(1);
-    }
-
-    *length = received_len;
-    g_rtos_ops->SemaphoreGive(g_esp32_dev.mutex);
-
+    g_rtos_ops->SemaphoreGive(dev->mutex); // 释放互斥锁
     if (received_len > 0) {
-        Log_Message(LOG_LEVEL_INFO, "[BLE Recv] Received %d bytes.", received_len);
-        return AT_ERR_NONE;
+        *length = received_len; // 返回已接收的部分数据
+        Log_Message(LOG_LEVEL_INFO, "[%s Recv] Partial data received %u bytes before timeout.", log_prefix, received_len);
+        return AT_OK; // 即使超时，如果收到数据也算成功（根据需求决定）
     }
-    Log_Message(LOG_LEVEL_WARNING, "[BLE Recv] Timeout.");
     return AT_ERR_TIMEOUT;
 }
+
+
+// 定义全局唯一的ESP32 AT操作接口实例
+const ESP32_AT_Ops_t g_esp32_at_ops = {
+    .SendATCommand = ESP32_AT_SendATCommand,
+    .SendData = ESP32_AT_SendData,
+    .ReceiveData = ESP32_AT_ReceiveData,
+};

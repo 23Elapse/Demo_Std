@@ -2,9 +2,9 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:52:45
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-04 21:30:58
- * @FilePath: \Demo\Application\api_wifi.h
- * @Description: WiFi 和 BLE 模块驱动头文件
+ * @LastEditTime: 2025-06-14 18:57:30
+ * @FilePath: \Demo_backup\Application\api_wifi.h
+ * @Description: ESP32 WiFi 和 BLE 模块统一驱动头文件 (Refactored)
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
  */
@@ -13,7 +13,7 @@
 
 #include "log_system.h"
 #include "rtos_abstraction.h"
-#include "serial_driver.h"
+#include "serial_driver.h" // 依赖底层串口驱动
 
 /**
  * @brief WiFi/BLE 配置宏
@@ -22,24 +22,30 @@
 #define WIFI_PASSWORD   "ABC104104"
 #define TCP_SERVER_IP   "192.168.2.100"
 #define TCP_PORT        "5000"
-#define UART_TIMEOUT    5000
-#define TCP_BUFFER_SIZE 256
+#define UART_TIMEOUT    5000 // 通用串口操作超时
+#define TCP_BUFFER_SIZE 256 // TCP数据缓冲区大小
 
 /**
  * @brief AT 指令错误码枚举
  */
 typedef enum {
-    AT_ERR_NONE,
-    AT_ERR_TIMEOUT,
-    AT_ERR_UNEXPECTED_RESPONSE,
-    AT_ERR_SEND_FAILED,
-    AT_ERR_CONNECTION_FAILED,
-    AT_ERR_DISCONNECTED,
-    AT_ERR_PARAM
-} AT_Error_Code;
+    AT_OK = 0,                  // 操作成功
+    AT_ERR_PARAM,               // 参数错误
+    AT_ERR_TIMEOUT,             // 操作超时
+    AT_ERR_UNEXPECTED_RESPONSE, // 收到非预期响应
+    AT_ERR_SEND_FAILED,         // 发送数据失败
+    AT_ERR_CONNECTION_FAILED,   // 连接失败
+    AT_ERR_DISCONNECTED,        // 已断开连接
+    AT_ERR_MUTEX_TIMEOUT        // 获取互斥锁超时
+} AT_Status_t;
 
 /**
  * @brief AT 指令配置结构体
+ * @param at_cmd: 要发送的AT指令字符串
+ * @param expected_resp: 期望的响应字符串 (用于判断成功)
+ * @param timeout_ms: 等待响应的超时时间 (毫秒)
+ * @param retries: 重试次数 (针对AT指令发送)
+ * @param description: 指令描述 (用于日志)
  */
 typedef struct {
     const char* at_cmd;
@@ -47,75 +53,80 @@ typedef struct {
     uint32_t timeout_ms;
     uint8_t retries;
     const char* description;
-} AT_Cmd_Config;
+} AT_Cmd_Config_t;
+
+/**
+ * @brief ESP32 通信类型枚举
+ * 用于区分 AT 命令是针对 WiFi 还是 BLE 功能
+ */
+typedef enum {
+    ESP32_COMM_TYPE_WIFI,
+    ESP32_COMM_TYPE_BLE
+} ESP32_Comm_Type_t;
 
 /**
  * @brief ESP32 共享设备结构体
- * 该结构体封装了ESP32模块共享的硬件资源。
+ * 该结构体封装了ESP32模块共享的硬件资源和同步机制。
  */
 typedef struct {
-    Serial_Device_t *serial_dev;    // 指向共享的串口设备 (例如 ESP32_Serial)
+    Serial_Device_t *serial_dev;    // 指向共享的底层串口设备 (例如 g_esp32_serial)
     void *mutex;                    // 指向用于同步访问ESP32的共享互斥锁
-    GPIO_TypeDef *reset_port;       // ESP32 复位引脚的端口
-    uint16_t reset_pin;             // ESP32 复位引脚的引脚号
-} ESP32_Shared_Device_t; // 使用此名称以区分实例 ESP32_Device
+    GPIO_TypeDef *reset_port;       // ESP32 复位引脚的GPIO端口
+    uint16_t reset_pin;             // ESP32 复位引脚的GPIO引脚号
+} ESP32_Shared_Device_t;
+
+// 声明全局共享ESP32设备实例 (在 dev_config.c 中定义)
+extern ESP32_Shared_Device_t g_esp32_dev;
 
 /**
- * @brief 全局共享ESP32设备实例的声明
- * 该实例将在 app_tasks.c 中定义和初始化。
+ * @brief ESP32 硬件相关初始化 (例如复位引脚)
+ * @param dev 指向ESP32共享设备实例
  */
-extern ESP32_Shared_Device_t ESP32_Device; // 实例名保持 ESP32_Device
-
-// ESP32硬件控制函数
-void ESP32_Device_HwInit(void);
-void ESP32_Device_HwReset(void);
+void ESP32_Hw_Init(ESP32_Shared_Device_t *dev);
 
 /**
- * @brief 发送 WiFi AT 指令
- * @param cmd AT 指令配置
- * @return AT_Error_Code 操作状态
+ * @brief ESP32 硬件复位
+ * @param dev 指向ESP32共享设备实例
  */
-AT_Error_Code WiFi_SendATCommand(const AT_Cmd_Config *cmd);
+void ESP32_Hw_Reset(ESP32_Shared_Device_t *dev);
 
 /**
- * @brief 发送 WiFi TCP 数据
- * @param data 要发送的数据
- * @param length 数据长度
- * @return AT_Error_Code 操作状态
+ * @brief ESP32 AT 命令操作接口
+ * 提供统一的AT命令发送和数据收发接口，用于WiFi和BLE功能。
  */
-AT_Error_Code WiFi_SendTCPData(const uint8_t *data, uint16_t length);
+typedef struct {
+    /**
+     * @brief 发送 ESP32 AT 指令 (通用接口)
+     * @param dev 指向ESP32共享设备实例
+     * @param cmd AT 指令配置
+     * @param type 通信类型 (WiFi/BLE)
+     * @return AT_Status_t 操作状态
+     */
+    AT_Status_t (*SendATCommand)(ESP32_Shared_Device_t *dev, const AT_Cmd_Config_t *cmd, ESP32_Comm_Type_t type);
 
-/**
- * @brief 接收 WiFi TCP 数据
- * @param buffer 数据存储缓冲区
- * @param length 期望接收的长度（输出实际接收长度）
- * @param timeout_ms 超时时间（毫秒）
- * @return AT_Error_Code 操作状态
- */
-AT_Error_Code WiFi_ReceiveTCPData(uint8_t *buffer, uint16_t *length, uint32_t timeout_ms);
+    /**
+     * @brief 发送数据 (TCP/BLE透传数据)
+     * @param dev 指向ESP32共享设备实例
+     * @param data 要发送的数据缓冲区
+     * @param length 数据长度
+     * @param type 通信类型 (WiFi/BLE)
+     * @return AT_Status_t 操作状态
+     */
+    AT_Status_t (*SendData)(ESP32_Shared_Device_t *dev, const uint8_t *data, uint16_t length, ESP32_Comm_Type_t type);
 
-/**
- * @brief 发送 BLE AT 指令
- * @param cmd AT 指令配置
- * @return AT_Error_Code 操作状态
- */
-AT_Error_Code BLE_SendATCommand(const AT_Cmd_Config *cmd);
+    /**
+     * @brief 接收数据 (TCP/BLE透传数据)
+     * @param dev 指向ESP32共享设备实例
+     * @param buffer 数据存储缓冲区
+     * @param length 期望接收的长度（输入），实际接收的长度（输出）
+     * @param timeout_ms 超时时间（毫秒）
+     * @param type 通信类型 (WiFi/BLE)
+     * @return AT_Status_t 操作状态
+     */
+    AT_Status_t (*ReceiveData)(ESP32_Shared_Device_t *dev, uint8_t *buffer, uint16_t *length, uint32_t timeout_ms, ESP32_Comm_Type_t type);
+} ESP32_AT_Ops_t;
 
-/**
- * @brief 发送 BLE 数据
- * @param data 要发送的数据
- * @param length 数据长度
- * @return AT_Error_Code 操作状态
- */
-AT_Error_Code BLE_SendData(const uint8_t *data, uint16_t length);
-
-/**
- * @brief 接收 BLE 数据
- * @param buffer 数据存储缓冲区
- * @param length 期望接收的长度（输出实际接收长度）
- * @param timeout_ms 超时时间（毫秒）
- * @return AT_Error_Code 操作状态
- */
-AT_Error_Code BLE_ReceiveData(uint8_t *buffer, uint16_t *length, uint32_t timeout_ms);
+// 声明全局唯一的ESP32 AT操作接口实例
+extern const ESP32_AT_Ops_t g_esp32_at_ops;
 
 #endif /* __API_WIFI_H */

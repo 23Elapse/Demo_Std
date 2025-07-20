@@ -1,25 +1,28 @@
 /**
  * =====================================================================================
  * @file        app_tasks.c
- * @brief       应用层任务创建与系统初始化协调中心
+ * @brief       应用层任务创建与系统初始化协调中心 (Refactored)
  * @author      23Elapse & Gemini
- * @version     2.0 (Refactored)
- * @date        2025-06-08
+ * @version     2.1 (Refactored)
+ * @date        2025-06-14
  * @note        这是系统启动的总入口，负责按顺序初始化所有模块并创建任务。
  * =====================================================================================
  */
 #include "app_tasks.h"
 #include "dev_config.h"         // 关键：包含所有设备实例声明
-#include "device_manager.h"     // 关键：包含设备管理器接口
-#include "rtos_abstraction.h"
-#include "log_system.h"
-#include "serial_interface.h"   // 需要 Serial_Operations
-#include "can_driver.h"         // 需要 CAN_Operations
-#include "i2c_driver.h"         // 需要 g_i2c_bus_ops
-#include "spi_flash.h"
-#include "tsk_eeprom.h"         // 需要 Tsk_Eeprom_Init
-#include "FreeRTOS.h"
-#include "task.h"
+#include "device_manager.h"     // 关键：包含设备管理器接口 (可选，如果无需通用管理)
+#include "rtos_abstraction.h"   // RTOS 抽象层
+#include "log_system.h"         // 日志系统
+#include "serial_interface.h"   // 串口中间层接口
+#include "can_driver.h"         // CAN 驱动接口
+#include "i2c_driver.h"         // I2C 总线驱动接口
+#include "spi_flash.h"          // SPI Flash 驱动接口
+#include "pcf8574.h"            // PCF8574 驱动接口 (如果作为独立设备管理)
+#include "tsk_eeprom.h"         // EEPROM 任务 (假设它有自己的初始化和任务创建)
+#include "FreeRTOS.h"           // FreeRTOS 核心
+#include "task.h"               // FreeRTOS 任务API
+#include "stm32f4xx_can.h"
+#include "rs485_driver.h"
 
 /*
  * =====================================================================================
@@ -29,33 +32,40 @@
 #define TASK_RS485_POLL_STK_SIZE    256
 #define TASK_RS485_POLL_PRIO        2
 
-#define TASK_SERIAL_RX_STK_SIZE     256
-#define TASK_SERIAL_RX_PRIO         3 // 接收任务优先级可以高一些
+#define TASK_SERIAL_RX_STK_SIZE     512 // 接收任务栈可能需要大一些，处理协议解析
+#define TASK_SERIAL_RX_PRIO         3
 
 #define TASK_ERROR_LOG_STK_SIZE     128
 #define TASK_ERROR_LOG_PRIO         1
 
-#define TASK_WIFI_STK_SIZE          512
-#define TASK_WIFI_PRIO              2
-
-#define TASK_BLE_STK_SIZE           512
-#define TASK_BLE_PRIO               2
+#define TASK_WIFI_BLE_STK_SIZE      1024 // WiFi/BLE任务需要较大栈，特别是处理AT命令
+#define TASK_WIFI_BLE_PRIO          2
 
 #define TASK_CAN_STK_SIZE           256
 #define TASK_CAN_PRIO               3
 
-#define TASK_SPI_FLASH_STK_SIZE     256
+#define TASK_SPI_FLASH_STK_SIZE     512 // Flash操作可能需要较大栈和缓冲区
 #define TASK_SPI_FLASH_PRIO         2
+
+#define TASK_I2C_STK_SIZE           256
+#define TASK_I2C_PRIO               2
 
 /*
  * =====================================================================================
  * 模块私有变量
  * =====================================================================================
  */
+// 设备管理器 (可选，如果无需通用设备注册/查找功能，可以移除)
 #define MAX_DEVICES 10
 static Device_Handle_t g_device_array[MAX_DEVICES];
 static Device_Manager_t g_device_mgr;
 
+// PCF8574 设备实例（需要在这里定义，因为 dev_config.h 中只声明了总线）
+static PCF8574_Device_t g_pcf8574_dev = {
+    .i2c_bus = &g_i2c1_bus,       // 指向 dev_config.c 中定义的 I2C 总线
+    .dev_addr = PCF8574_DEFAULT_ADDR, // 使用默认地址
+    .current_io_state = 0x00      // 初始IO状态
+};
 
 /*
  * =====================================================================================
@@ -63,19 +73,9 @@ static Device_Manager_t g_device_mgr;
  * =====================================================================================
  */
 static void App_RTOS_Init(void);
-static void App_Device_Register(void);
+static void App_Device_Register(void); // 如果使用 Device Manager
 static void App_Driver_Init(void);
 static void App_Tasks_Create(void);
-
-// 各个任务的函数原型声明
-void App_RS485_PollTask(void* pvParameters);
-void App_SerialRxTask(void* pvParameters);
-void App_ErrorLogTask(void* pvParameters);
-void App_WifiTask(void* pvParameters);
-void App_BLETask(void* pvParameters);
-void App_CANTask(void* pvParameters);
-void App_SPIFlashTask(void* pvParameters);
-
 
 /*
  * =====================================================================================
@@ -83,36 +83,48 @@ void App_SPIFlashTask(void* pvParameters);
  * =====================================================================================
  */
 void App_Init(void) {
-    App_RTOS_Init();
-    App_Device_Register();
-    App_Driver_Init();
-    App_Tasks_Create();
+    App_RTOS_Init();          // 1. 初始化RTOS抽象层
+    App_Device_Register();    // 2. 注册设备到设备管理器 (可选)
+    App_Driver_Init();        // 3. 初始化所有硬件驱动
+    App_Tasks_Create();       // 4. 创建所有应用任务
 
     Log_Message(LOG_LEVEL_INFO, "[App] Starting RTOS scheduler...");
-    g_rtos_ops->TaskStartScheduler();
+    g_rtos_ops->TaskStartScheduler(); // 启动RTOS调度器
 
+    // 如果调度器退出，则表示发生严重错误
     Log_Message(LOG_LEVEL_ERROR, "FATAL: Scheduler exited unexpectedly!");
-    for (;;);
+    for (;;); // 停止在此
 }
-
 
 /*
  * =====================================================================================
- * 初始化辅助函数
+ * 初始化辅助函数实现
  * =====================================================================================
  */
+
+/**
+ * @brief 初始化RTOS抽象层
+ */
 static void App_RTOS_Init(void) {
-    g_rtos_ops = &FreeRTOS_Ops;
+    g_rtos_ops = &FreeRTOS_Ops; // 设置全局RTOS操作接口为FreeRTOS实现
     if (!g_rtos_ops || !g_rtos_ops->SemaphoreCreate || !g_rtos_ops->TaskCreate) {
-        for (;;);
+        // 如果RTOS抽象层未正确设置，则系统无法运行
+        // 在实际项目中，这里可能需要一个LED闪烁来指示致命错误
+        Log_Message(LOG_LEVEL_ERROR, "[App] RTOS abstraction layer not properly initialized!");
+        for (;;); // 停机
     }
-    // ESP32的Mutex在其驱动内部或dev_config中处理更佳，此处简化
+    Log_Message(LOG_LEVEL_INFO, "[App] RTOS abstraction initialized.");
 }
 
+/**
+ * @brief 注册设备到设备管理器
+ * @note  如果不需要通用设备管理功能，此函数及其调用可以移除。
+ */
 static void App_Device_Register(void) {
-    DeviceManager_Init(&g_device_mgr, g_device_array, MAX_DEVICES);
+    DeviceManager_Init(&g_device_mgr, g_device_array, MAX_DEVICES); // 初始化设备管理器
     Log_Message(LOG_LEVEL_INFO, "[App] Registering devices to manager...");
 
+    // 注册 dev_config.h 中声明的全局设备实例
     DeviceManager_Register(&g_device_mgr, &g_rs485_serial, DEVICE_TYPE_SERIAL, 1);
     DeviceManager_Register(&g_device_mgr, &g_uart_dev,     DEVICE_TYPE_SERIAL, 2);
     DeviceManager_Register(&g_device_mgr, &g_esp32_serial,  DEVICE_TYPE_SERIAL, 3);
@@ -120,120 +132,136 @@ static void App_Device_Register(void) {
     DeviceManager_Register(&g_device_mgr, &g_i2c1_bus,      DEVICE_TYPE_I2C_BUS, 1);
     DeviceManager_Register(&g_device_mgr, &g_spi_flash_dev, DEVICE_TYPE_SPI_FLASH, 1);
     DeviceManager_Register(&g_device_mgr, &g_esp32_dev,     DEVICE_TYPE_ESP32, 1);
-    // 为ESP32设备创建共享互斥锁
-    g_esp32_dev.mutex = g_rtos_ops->SemaphoreCreate();
-    if (!g_esp32_dev.mutex) {
-        Log_Message(LOG_LEVEL_ERROR, "[App] create ESP32 mutex failed"); // 日志系统此时可能未就绪
-        for(;;); // 停机
-    }
+    DeviceManager_Register(&g_device_mgr, &g_pcf8574_dev,   DEVICE_TYPE_I2C_SLAVE, 1); // 注册PCF8574设备
+    Log_Message(LOG_LEVEL_INFO, "[App] All devices registered.");
 }
 
+/**
+ * @brief 初始化所有硬件驱动
+ */
 static void App_Driver_Init(void) {
     Log_Message(LOG_LEVEL_INFO, "[App] Initializing hardware drivers...");
 
-    // 初始化底层物理驱动
-    Serial_Operations.Init(&g_rs485_serial);
-    Serial_Operations.Init(&g_uart_dev);
-    Serial_Operations.Init(&g_esp32_serial);
-    CAN_Operations.Init(&g_can1_dev);
-    g_i2c_bus_ops.Init(&g_i2c1_bus);
-    SPI_Flash_Init(g_spi_flash_dev.config);
+    // 初始化串口驱动 (底层)
+    g_serial_ops.Init(&g_rs485_serial);
+    g_serial_ops.Init(&g_uart_dev);
+    g_serial_ops.Init(&g_esp32_serial);
 
-    // 初始化高层服务/模块
-    // Tsk_Eeprom_Init(); // 此函数会初始化参数并创建自己的后台任务
+    // 初始化 CAN 驱动
+    g_can_ops.Init(&g_can1_dev);
+
+    // 初始化 I2C 总线驱动
+    g_i2c_bus_ops.Init(&g_i2c1_bus);
+
+    // 初始化 SPI Flash 驱动
+    SPI_Flash_Device_Init(&g_spi_flash_dev);
+
+    // 初始化 ESP32 硬件 (复位引脚等)
+    ESP32_Hw_Init(&g_esp32_dev);
+
+    // 初始化 PCF8574 驱动 (作为I2C从设备)
+    PCF8574_Init(&g_pcf8574_dev);
+
+    // 初始化高层服务/模块 (例如 EEPROM 任务)
+    // Tsk_Eeprom_Init(); // 假设此函数包含其自身任务的创建
+    Log_Message(LOG_LEVEL_INFO, "[App] All hardware drivers initialized.");
 }
 
+/**
+ * @brief 创建所有应用任务
+ */
 static void App_Tasks_Create(void) {
     Log_Message(LOG_LEVEL_INFO, "[App] Creating application tasks...");
 
+    // RS485 轮询发送任务 (负责从队列中取出帧并通过g_rs485_serial发送)
     g_rtos_ops->TaskCreate(App_RS485_PollTask, "RS485_Poll", TASK_RS485_POLL_STK_SIZE, &g_rs485_serial, TASK_RS485_POLL_PRIO);
+
+    // 串口接收任务 (处理通用串口数据和RS485协议解析，这里以g_rs485_serial为例)
     g_rtos_ops->TaskCreate(App_SerialRxTask, "Serial_Rx", TASK_SERIAL_RX_STK_SIZE, &g_rs485_serial, TASK_SERIAL_RX_PRIO);
+
+    // 错误日志处理任务
     g_rtos_ops->TaskCreate(App_ErrorLogTask, "Error_Log", TASK_ERROR_LOG_STK_SIZE, NULL, TASK_ERROR_LOG_PRIO);
-    g_rtos_ops->TaskCreate(App_WifiTask, "WiFi", TASK_WIFI_STK_SIZE, NULL, TASK_WIFI_PRIO);
-    g_rtos_ops->TaskCreate(App_BLETask, "BLE", TASK_BLE_STK_SIZE, NULL, TASK_BLE_PRIO);
-    g_rtos_ops->TaskCreate(App_CANTask, "CAN", TASK_CAN_STK_SIZE, &g_can1_dev, TASK_CAN_PRIO);
+
+    // WiFi/BLE 统一管理任务
+    g_rtos_ops->TaskCreate(App_WifiBLETask, "WiFi_BLE", TASK_WIFI_BLE_STK_SIZE, NULL, TASK_WIFI_BLE_PRIO);
+
+    // CAN 通信任务
+    // g_rtos_ops->TaskCreate(App_CANTask, "CAN", TASK_CAN_STK_SIZE, &g_can1_dev, TASK_CAN_PRIO);
+
+    // SPI Flash 管理任务
     g_rtos_ops->TaskCreate(App_SPIFlashTask, "SPI_Flash", TASK_SPI_FLASH_STK_SIZE, &g_spi_flash_dev, TASK_SPI_FLASH_PRIO);
-    
-    // 注意：EepromMonitorTask 由 Tsk_Eeprom_Init() 内部创建，此处无需再创建
+
+    // I2C 测试任务 (PCF8574)
+    // g_rtos_ops->TaskCreate(App_I2CTask, "I2C_Test", TASK_I2C_STK_SIZE, &g_pcf8574_dev, TASK_I2C_PRIO);
+
+    // 注意：EepromMonitorTask (或其他模块任务) 由其各自的 Init 函数内部创建
+    Log_Message(LOG_LEVEL_INFO, "[App] All application tasks created.");
 }
 
 /*
  * =====================================================================================
- * 任务函数实现 (此处仅为框架，具体实现需保留)
+ * 任务函数实现
  * =====================================================================================
  */
-// void App_RS485_PollTask(void *pvParameters) {
-//     Serial_Device_t *dev = (Serial_Device_t *)pvParameters;
-//     for(;;) {
-//         Serial_Operations.PollSendRS485(dev);
-//         g_rtos_ops->Delay(10); // 轮询间隔
-//     }
-// }
 
 /**
- * @brief RS485 轮询任务
+ * @brief RS485 轮询发送任务
+ * @param pvParameters 指向 Serial_Device_t 实例 (应为 RS485 模式)
  */
 void App_RS485_PollTask(void *pvParameters) {
-    Serial_Device_t *dev = (Serial_Device_t *)pvParameters;
-    if (!dev) {
-        Log_Message(LOG_LEVEL_ERROR, "[RS485 Poll] Invalid device parameter. Task suspending.");
-        if(g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
+    Serial_Device_t *rs485_serial_dev = (Serial_Device_t *)pvParameters;
+    if (!rs485_serial_dev) {
+        Log_Message(LOG_LEVEL_ERROR, "[RS485 Poll] Invalid device parameter. Suspending task.");
+        if (g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
     }
-    Log_Message(LOG_LEVEL_INFO, "[RS485 Poll] Task started.");
+    Log_Message(LOG_LEVEL_INFO, "[RS485 Poll] Task started for USART %p.", rs485_serial_dev->instance);
+
+    // 封装为 RS485_Device_t 便于使用 g_rs485_ops
+    RS485_Device_t rs485_dev = {.serial_dev = rs485_serial_dev};
+    g_rs485_ops.Init(&rs485_dev); // 初始化 RS485 逻辑层
+
     while (1) {
-        if (dev->mode == RS485_MODE) { // 确保是RS485设备
-             Serial_Operations.PollSendRS485(dev);
-        }
-        if (g_rtos_ops && g_rtos_ops->Delay) g_rtos_ops->Delay(100);
+        g_rs485_ops.PollSendQueue(&rs485_dev); // 轮询发送队列
+        g_rtos_ops->Delay(10); // 轮询间隔，可调整
     }
 }
 
 /**
- * @brief 串口接收任务 (示例，处理RS485数据)
+ * @brief 串口接收任务 (处理RS485协议数据)
+ * @param pvParameters 指向 Serial_Device_t 实例 (通常是 g_rs485_serial)
  */
 void App_SerialRxTask(void *pvParameters) {
-    Serial_Device_t *dev = (Serial_Device_t *)pvParameters;
-     if (!dev) {
-        Log_Message(LOG_LEVEL_ERROR, "[Serial Rx] Invalid device parameter. Task suspending.");
-        if(g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
+    Serial_Device_t *serial_dev = (Serial_Device_t *)pvParameters;
+    if (!serial_dev) {
+        Log_Message(LOG_LEVEL_ERROR, "[Serial Rx] Invalid device parameter. Suspending task.");
+        if (g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
     }
-    Log_Message(LOG_LEVEL_INFO, "[Serial Rx] Task started for USART %p.", dev->instance);
+    Log_Message(LOG_LEVEL_INFO, "[Serial Rx] Task started for USART %p.", serial_dev->instance);
 
-    Protocol_Data_t local_rx_data;
-    uint32_t local_rx_index = 0;
-    uint8_t local_state = 0;
-    uint8_t local_expected_length = 0;
-    memset(&local_rx_data, 0, sizeof(Protocol_Data_t));
-
+    Protocol_Data_t received_data; // 用于存储接收到的协议数据
 
     while (1) {
-        uint8_t byte;
-        // 确保dev和环形缓冲区有效
-        if (dev && dev->rx_buffer.buffer && dev->rx_buffer.sem && RingBuffer_IsAvailable(&dev->rx_buffer)) {
-            // 使用带超时的信号量等待，避免完全阻塞或忙等
-            // if (g_rtos_ops->SemaphoreTake(dev->rx_buffer.sem, pdMS_TO_TICKS(10))) { // 等待10ms
-                if (RingBuffer_Read(&dev->rx_buffer, &byte) == RB_OK) {
-                    // g_rtos_ops->SemaphoreGive(dev->rx_buffer.sem); // 如果RingBuffer_Read不处理信号量，则需要
-
-                    if (Protocol_ProcessByte(dev, &local_rx_data, byte, &local_rx_index, &local_state, &local_expected_length, NULL)) {
-                        if (local_rx_data.is_rs485) {
-                            RS485_Frame_t *frame = &local_rx_data.rs485_frame;
-                            Log_Message(LOG_LEVEL_INFO, "[RS485 Rx] Frame: addr1=0x%02X, cmd=0x%02X, len=%d",
-                                        frame->addr1, frame->cmd, frame->info_len);
-                        } else {
-                            Log_Message(LOG_LEVEL_INFO, "[UART Rx] Data on USART %p (non-RS485)", dev->instance);
-                        }
-                        // 重置状态以便处理下一帧
-                        local_rx_index = 0;
-                        local_state = 0;
-                        local_expected_length = 0;
-                        memset(&local_rx_data, 0, sizeof(Protocol_Data_t));
-                    }
-                } // else { g_rtos_ops->SemaphoreGive(dev->rx_buffer.sem); } // 读取失败也要释放
-            // }
+        // 从串口中间层接收并解析协议数据，带超时
+        Serial_Status_t status = g_serial_ops.ReceiveProtocolData(serial_dev, &received_data, 100); // 等待100ms
+        if (status == SERIAL_OK) {
+            if (received_data.is_rs485) {
+                // 处理RS485协议数据
+                Log_Message(LOG_LEVEL_INFO, "[RS485 Rx] Frame: Addr1=0x%02X, Cmd=0x%02X, InfoLen=%u",
+                            received_data.rs485_frame.addr1,
+                            received_data.rs485_frame.cmd,
+                            received_data.rs485_frame.info_len);
+                // 可以在这里进一步处理接收到的RS485帧，例如根据命令字进行响应
+            } else {
+                // 处理其他（非RS485）协议数据，如果存在
+                Log_Message(LOG_LEVEL_INFO, "[UART Rx] Non-RS485 data received on USART %p.", serial_dev->instance);
+            }
+        } else if (status == SERIAL_ERR_NO_DATA) {
+            // 没有数据，继续循环
         } else {
-             if (g_rtos_ops && g_rtos_ops->Delay) g_rtos_ops->Delay(10); // 如果没数据，短暂延时
+            // 其他错误，例如 SERIAL_ERR_FRAME_ERR (CRC或帧格式错误)
+            Log_Message(LOG_LEVEL_WARNING, "[Serial Rx] Error receiving protocol data on USART %p. Status: %d.", serial_dev->instance, status);
         }
+        // 如果上面有数据处理，不需要额外延时，否则可以延时
     }
 }
 
@@ -242,67 +270,76 @@ void App_SerialRxTask(void *pvParameters) {
  */
 void App_ErrorLogTask(void *pvParameters) {
     Log_Message(LOG_LEVEL_INFO, "[Error Log] Task started.");
-    Serial_ErrorLog_t log_entry; // 重命名以避免与全局 log 冲突
+    Serial_ErrorLog_t log_entry;
     while (1) {
-        if (Serial_Operations.GetErrorLog(&log_entry, 0xFFFFFFFF) == SERIAL_OK) { // 阻塞等待
-            Log_Message(LOG_LEVEL_WARNING, "[ErrorLog] Type=%d, Inst=%p, Timestamp=%u",
-                        log_entry.type, log_entry.instance, (unsigned int)log_entry.timestamp);
+        // 阻塞等待错误日志，直到有日志可用 (0xFFFFFFFF 表示永远等待)
+        if (g_serial_ops.GetErrorLog(&log_entry, 0xFFFFFFFF) == SERIAL_OK) {
+            // 打印错误日志
+            Log_Message(LOG_LEVEL_WARNING, "[ErrorLog] Type=%u, Instance=%p, Timestamp=%lu",
+                        (unsigned int)log_entry.type, log_entry.instance, (unsigned long)log_entry.timestamp);
         }
     }
 }
 
 /**
- * @brief WiFi 管理任务
+ * @brief WiFi/BLE 统一管理任务
+ * @param pvParameters 未使用
  */
-void App_WifiTask(void *pvParameters)
+void App_WifiBLETask(void *pvParameters)
 {
-    Log_Message(LOG_LEVEL_INFO, "[WiFi Task] Started.");
+    (void)pvParameters; // 避免编译器警告
+    Log_Message(LOG_LEVEL_INFO, "[WiFi/BLE Task] Started.");
+
     uint8_t esp32_ready = 0;
     uint8_t ready_retry_count = 0;
     const uint8_t max_ready_retries = 5;
 
-    // 循环检查ESP32模块是否就绪
-    while(!esp32_ready && ready_retry_count < max_ready_retries) {
-        ESP32_Device_HwReset(); // 硬件复位ESP32
-        Log_Message(LOG_LEVEL_INFO, "[WiFi] ESP32 Reset, waiting for boot up (attempt %d/%d)...", ready_retry_count + 1, max_ready_retries);
-        if (g_rtos_ops->Delay) g_rtos_ops->Delay(300); // 等待300ms
+    // --- 1. ESP32 模块就绪检查 ---
+    while (!esp32_ready && ready_retry_count < max_ready_retries) {
+        ESP32_Hw_Reset(&g_esp32_dev); // 硬件复位ESP32
+        Log_Message(LOG_LEVEL_INFO, "[WiFi/BLE] ESP32 Reset, waiting for boot up (attempt %u/%u)...", ready_retry_count + 1, max_ready_retries);
+        g_rtos_ops->Delay(300); // 等待ESP32启动
 
         // 发送基础AT指令测试模块是否响应
-        AT_Cmd_Config at_test_cmd = {"AT\r\n", "OK", 2000, 2, "ESP32 Ready Test"};
-        if (WiFi_SendATCommand(&at_test_cmd) == AT_ERR_NONE) {
-            Log_Message(LOG_LEVEL_INFO, "[WiFi] ESP32 is ready.");
+        AT_Cmd_Config_t at_test_cmd = {"AT\r\n", "OK", 2000, 2, "ESP32 Ready Test"};
+        if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, &at_test_cmd, ESP32_COMM_TYPE_WIFI) == AT_OK) {
+            Log_Message(LOG_LEVEL_INFO, "[WiFi/BLE] ESP32 is ready.");
             esp32_ready = 1;
         } else {
-            Log_Message(LOG_LEVEL_WARNING, "[WiFi] ESP32 not ready. Retrying...");
+            Log_Message(LOG_LEVEL_WARNING, "[WiFi/BLE] ESP32 not ready. Retrying...");
             ready_retry_count++;
-            if (g_rtos_ops->Delay && ready_retry_count < max_ready_retries) g_rtos_ops->Delay(2000); // 重试前额外延时
+            if (ready_retry_count < max_ready_retries) g_rtos_ops->Delay(2000); // 重试前额外延时
         }
     }
 
     if (!esp32_ready) {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi] ESP32 failed to become ready after %d attempts. Suspending task.", max_ready_retries);
+        Log_Message(LOG_LEVEL_ERROR, "[WiFi/BLE] ESP32 failed to become ready after %u attempts. Suspending task.", max_ready_retries);
         if (g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;); // 挂起任务
-        return; // 理论上不应执行到此
+        return;
     }
 
     static uint8_t wifi_app_initialized = 0; // WiFi应用层初始化标志
+    static uint8_t ble_app_initialized = 0;  // BLE应用层初始化标志
     uint8_t app_init_retry_count = 0;
     const uint8_t max_app_init_retries = 3;
 
     while (1) {
+        // --- 2. WiFi 应用层初始化 ---
         if (!wifi_app_initialized) {
-            AT_Cmd_Config init_cmds[] = {
+            Log_Message(LOG_LEVEL_INFO, "[WiFi] Attempting application layer initialization...");
+            AT_Cmd_Config_t init_cmds[] = {
                 {"AT+CWMODE=1\r\n", "OK", 2000, 2, "Set Station Mode"},
                 {"AT+CWJAP=\"" WIFI_SSID "\",\"" WIFI_PASSWORD "\"\r\n", "OK", 15000, 3, "Connect to WiFi AP"},
-                {NULL, NULL, 0, 0, NULL}
+                // Add more WiFi specific init commands here if needed
+                {NULL, NULL, 0, 0, NULL} // 哨兵值
             };
             uint8_t init_success = 1;
-            for (const AT_Cmd_Config *cmd = init_cmds; cmd->at_cmd != NULL; cmd++) {
-                if (WiFi_SendATCommand(cmd) != AT_ERR_NONE) {
+            for (const AT_Cmd_Config_t *cmd = init_cmds; cmd->at_cmd != NULL; cmd++) {
+                if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, cmd, ESP32_COMM_TYPE_WIFI) != AT_OK) {
                     init_success = 0;
                     break;
                 }
-                if (g_rtos_ops->Delay) g_rtos_ops->Delay(200);
+                g_rtos_ops->Delay(200); // 命令间延时
             }
 
             if (init_success) {
@@ -311,213 +348,246 @@ void App_WifiTask(void *pvParameters)
                 Log_Message(LOG_LEVEL_INFO, "[WiFi] Application Layer Initialization successful.");
             } else {
                 app_init_retry_count++;
-                Log_Message(LOG_LEVEL_WARNING, "[WiFi] App Layer Init failed, retry %d/%d.", app_init_retry_count, max_app_init_retries);
+                Log_Message(LOG_LEVEL_WARNING, "[WiFi] App Layer Init failed, retry %u/%u.", app_init_retry_count, max_app_init_retries);
                 if (app_init_retry_count >= max_app_init_retries) {
-                    Log_Message(LOG_LEVEL_ERROR, "[WiFi] Max App Layer Init retries. ESP32 may need full reset cycle.");
+                    Log_Message(LOG_LEVEL_ERROR, "[WiFi] Max App Layer Init retries. Triggering ESP32 full reset cycle.");
                     esp32_ready = 0; // 标记ESP32需要重新检查就绪状态
                     ready_retry_count = 0; // 重置ESP32就绪检查计数
                     wifi_app_initialized = 0; // 确保下次循环重新初始化应用层
-                    if (g_rtos_ops->Delay) g_rtos_ops->Delay(5000); // 长延时后从头开始
+                    g_rtos_ops->Delay(5000); // 长延时后从头开始
                     continue; // 返回到外层while，重新检查esp32_ready
                 }
-                if (g_rtos_ops->Delay) g_rtos_ops->Delay(3000); // 应用初始化失败后的短延时重试
+                g_rtos_ops->Delay(3000); // 应用初始化失败后的短延时重试
             }
         }
 
-        if (wifi_app_initialized) { // 只有在应用初始化成功后才执行TCP操作
-            char cmd_str[64];
-            snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", TCP_SERVER_IP, TCP_PORT);
-            AT_Cmd_Config tcp_cmd = {cmd_str, "OK", 10000, 1, "Connect to TCP Server"};
-
-            if (WiFi_SendATCommand(&tcp_cmd) == AT_ERR_NONE) {
-                Log_Message(LOG_LEVEL_INFO, "[WiFi] TCP Connected.");
-                uint8_t data_payload[] = "Hello Server from STM32 WiFi!"; // 重命名避免与全局data冲突
-                if (WiFi_SendTCPData(data_payload, strlen((char *)data_payload)) == AT_ERR_NONE) {
-                    uint8_t rx_buf[TCP_BUFFER_SIZE]; // 重命名
-                    uint16_t rx_buf_len = sizeof(rx_buf) - 1;
-                    if (WiFi_ReceiveTCPData(rx_buf, &rx_buf_len, 5000) == AT_ERR_NONE && rx_buf_len > 0) {
-                        rx_buf[rx_buf_len] = '\0';
-                        Log_Message(LOG_LEVEL_INFO, "[WiFi] TCP Recv: %s", rx_buf);
-                    }
-                }
-                AT_Cmd_Config close_cmd = {"AT+CIPCLOSE\r\n", "OK", 2000, 0, "Disconnect TCP"};
-                WiFi_SendATCommand(&close_cmd);
-            } else {
-                Log_Message(LOG_LEVEL_WARNING, "[WiFi] Failed to connect TCP. Checking AP connection...");
-                AT_Cmd_Config check_ap_cmd = {"AT+CWJAP?\r\n", WIFI_SSID, 3000, 0, "Check AP"};
-                if (WiFi_SendATCommand(&check_ap_cmd) != AT_ERR_NONE) {
-                    Log_Message(LOG_LEVEL_WARNING, "[WiFi] AP connection lost. Re-init app layer.");
-                    wifi_app_initialized = 0; // 触发应用层重初始化
-                }
-            }
-        }
-        if (g_rtos_ops->Delay) g_rtos_ops->Delay(10000); // 主循环延时
-    }
-}
-
-/**
- * @brief BLE 管理任务
- */
-void App_BLETask(void *pvParameters)
-{
-    Log_Message(LOG_LEVEL_INFO, "[BLE Task] Started.");
-    uint8_t esp32_ready = 0;
-    uint8_t ready_retry_count = 0;
-    const uint8_t max_ready_retries = 5;
-
-    while(!esp32_ready && ready_retry_count < max_ready_retries) {
-        ESP32_Device_HwReset();
-        Log_Message(LOG_LEVEL_INFO, "[BLE] ESP32 Reset, waiting for boot up (attempt %d/%d)...", ready_retry_count + 1, max_ready_retries);
-        if (g_rtos_ops->Delay) g_rtos_ops->Delay(3000);
-
-        AT_Cmd_Config at_test_cmd = {"AT\r\n", "OK", 2000, 2, "ESP32 Ready Test for BLE"};
-        if (BLE_SendATCommand(&at_test_cmd) == AT_ERR_NONE) { // 使用 BLE_SendATCommand
-            Log_Message(LOG_LEVEL_INFO, "[BLE] ESP32 is ready.");
-            esp32_ready = 1;
-        } else {
-            Log_Message(LOG_LEVEL_WARNING, "[BLE] ESP32 not ready. Retrying...");
-            ready_retry_count++;
-            if (g_rtos_ops->Delay && ready_retry_count < max_ready_retries) g_rtos_ops->Delay(2000);
-        }
-    }
-
-    if (!esp32_ready) {
-        Log_Message(LOG_LEVEL_ERROR, "[BLE] ESP32 failed to become ready after %d attempts. Suspending task.", max_ready_retries);
-        if (g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
-        return;
-    }
-
-    static uint8_t ble_app_initialized = 0;
-    uint8_t app_init_retry_count = 0;
-    const uint8_t max_app_init_retries = 3;
-
-    while (1) {
+        // --- 3. BLE 应用层初始化 ---
         if (!ble_app_initialized) {
-            AT_Cmd_Config init_cmds[] = {
+             Log_Message(LOG_LEVEL_INFO, "[BLE] Attempting application layer initialization...");
+             AT_Cmd_Config_t ble_init_cmds[] = {
                 {"AT+BLEINIT=2\r\n", "OK", 2000, 2, "Initialize BLE Peripheral"}, // 示例指令
                 {"AT+BLEADVSTART\r\n", "OK", 2000, 3, "Start BLE Advertising"}, // 示例指令
                 {NULL, NULL, 0, 0, NULL}
             };
-            uint8_t init_success = 1;
-            for (const AT_Cmd_Config *cmd = init_cmds; cmd->at_cmd != NULL; cmd++) {
-                if (BLE_SendATCommand(cmd) != AT_ERR_NONE) {
-                    init_success = 0;
+            uint8_t ble_init_success = 1;
+            for (const AT_Cmd_Config_t *cmd = ble_init_cmds; cmd->at_cmd != NULL; cmd++) {
+                if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, cmd, ESP32_COMM_TYPE_BLE) != AT_OK) {
+                    ble_init_success = 0;
                     break;
                 }
-                if (g_rtos_ops->Delay) g_rtos_ops->Delay(200);
+                g_rtos_ops->Delay(200);
             }
 
-            if (init_success) {
+            if (ble_init_success) {
                 ble_app_initialized = 1;
-                app_init_retry_count = 0;
                 Log_Message(LOG_LEVEL_INFO, "[BLE] Application Layer Initialization successful.");
             } else {
-                app_init_retry_count++;
-                 Log_Message(LOG_LEVEL_WARNING, "[BLE] App Layer Init failed, retry %d/%d.", app_init_retry_count, max_app_init_retries);
-                if (app_init_retry_count >= max_app_init_retries) {
-                    Log_Message(LOG_LEVEL_ERROR, "[BLE] Max App Layer Init retries. ESP32 may need full reset cycle.");
-                    esp32_ready = 0;
-                    ready_retry_count = 0;
-                    ble_app_initialized = 0;
-                    if (g_rtos_ops->Delay) g_rtos_ops->Delay(5000);
-                    continue;
+                Log_Message(LOG_LEVEL_WARNING, "[BLE] App Layer Init failed. Retrying in next cycle.");
+                // 对于BLE，失败后暂时不强制ESP32重置，而是等待下一次循环尝试
+            }
+        }
+
+        // --- 4. WiFi/BLE 定期功能测试 ---
+        if (wifi_app_initialized) {
+            char cmd_str[64];
+            snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", TCP_SERVER_IP, TCP_PORT);
+            AT_Cmd_Config_t tcp_connect_cmd = {cmd_str, "OK", 10000, 1, "Connect to TCP Server"};
+
+            if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, &tcp_connect_cmd, ESP32_COMM_TYPE_WIFI) == AT_OK) {
+                Log_Message(LOG_LEVEL_INFO, "[WiFi] TCP Connected.");
+                uint8_t tx_data[] = "Hello Server from STM32 WiFi!";
+                uint8_t rx_buffer[TCP_BUFFER_SIZE];
+                uint16_t rx_len = sizeof(rx_buffer); // 输入期望最大长度
+
+                // 发送TCP数据
+                if (g_esp32_at_ops.SendData(&g_esp32_dev, tx_data, strlen((char*)tx_data), ESP32_COMM_TYPE_WIFI) == AT_OK) {
+                    // 接收TCP数据
+                    if (g_esp32_at_ops.ReceiveData(&g_esp32_dev, rx_buffer, &rx_len, 5000, ESP32_COMM_TYPE_WIFI) == AT_OK && rx_len > 0) {
+                        rx_buffer[rx_len] = '\0'; // 确保字符串终止
+                        Log_Message(LOG_LEVEL_INFO, "[WiFi] TCP Recv: %s", rx_buffer);
+                    } else {
+                        Log_Message(LOG_LEVEL_WARNING, "[WiFi] No TCP data received or receive error.");
+                    }
+                } else {
+                    Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to send TCP data.");
                 }
-                 if (g_rtos_ops->Delay) g_rtos_ops->Delay(3000);
+
+                AT_Cmd_Config_t close_cmd = {"AT+CIPCLOSE\r\n", "OK", 2000, 0, "Disconnect TCP"};
+                g_esp32_at_ops.SendATCommand(&g_esp32_dev, &close_cmd, ESP32_COMM_TYPE_WIFI);
+            } else {
+                Log_Message(LOG_LEVEL_WARNING, "[WiFi] Failed to connect TCP. Checking AP connection...");
+                AT_Cmd_Config_t check_ap_cmd = {"AT+CWJAP?\r\n", WIFI_SSID, 3000, 0, "Check AP"};
+                if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, &check_ap_cmd, ESP32_COMM_TYPE_WIFI) != AT_OK) {
+                    Log_Message(LOG_LEVEL_WARNING, "[WiFi] AP connection lost. Triggering app layer re-init.");
+                    wifi_app_initialized = 0; // 触发应用层重初始化
+                }
             }
         }
 
         if (ble_app_initialized) {
-            uint8_t ble_data_payload[] = "Hello via BLE from STM32!"; // 重命名
-            if (BLE_SendData(ble_data_payload, strlen((char*)ble_data_payload)) == AT_ERR_NONE) {
-                uint8_t ble_rx_buf[TCP_BUFFER_SIZE]; // 重命名
-                uint16_t ble_rx_buf_len = sizeof(ble_rx_buf) - 1;
-                if (BLE_ReceiveData(ble_rx_buf, &ble_rx_buf_len, 5000) == AT_ERR_NONE && ble_rx_buf_len > 0) {
-                    ble_rx_buf[ble_rx_buf_len] = '\0';
-                    Log_Message(LOG_LEVEL_INFO, "[BLE] Recv: %s", ble_rx_buf);
+            uint8_t ble_tx_data[] = "Hello via BLE from STM32!";
+            uint8_t ble_rx_buffer[TCP_BUFFER_SIZE];
+            uint16_t ble_rx_len = sizeof(ble_rx_buffer);
+
+            if (g_esp32_at_ops.SendData(&g_esp32_dev, ble_tx_data, strlen((char*)ble_tx_data), ESP32_COMM_TYPE_BLE) == AT_OK) {
+                if (g_esp32_at_ops.ReceiveData(&g_esp32_dev, ble_rx_buffer, &ble_rx_len, 5000, ESP32_COMM_TYPE_BLE) == AT_OK && ble_rx_len > 0) {
+                    ble_rx_buffer[ble_rx_len] = '\0';
+                    Log_Message(LOG_LEVEL_INFO, "[BLE] Recv: %s", ble_rx_buffer);
+                } else {
+                    Log_Message(LOG_LEVEL_WARNING, "[BLE] No BLE data received or receive error.");
                 }
             } else {
-                Log_Message(LOG_LEVEL_WARNING, "[BLE] Failed to send data.");
+                Log_Message(LOG_LEVEL_ERROR, "[BLE] Failed to send BLE data.");
                 // ble_app_initialized = 0; // 可选：发送失败则重新初始化应用
             }
         }
-        if (g_rtos_ops->Delay) g_rtos_ops->Delay(10000);
+
+        g_rtos_ops->Delay(10000); // 主循环延时 (10秒)
     }
 }
 
 /**
  * @brief CAN 管理任务
+ * @param pvParameters 指向 CAN_Device_t 实例
  */
 void App_CANTask(void *pvParameters) {
     CAN_Device_t *can_dev = (CAN_Device_t *)pvParameters;
     if (!can_dev) {
-        Log_Message(LOG_LEVEL_ERROR, "[CAN] Invalid device parameter. Task suspending.");
-        if(g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
+        Log_Message(LOG_LEVEL_ERROR, "[CAN] Invalid device parameter. Suspending task.");
+        if (g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
     }
-    Log_Message(LOG_LEVEL_INFO, "[CAN Task] Started.");
+    Log_Message(LOG_LEVEL_INFO, "[CAN Task] Started for CAN instance %p.", can_dev->instance);
+
+    uint32_t msg_id_counter = 0; // 计数器，用于生成不同的消息ID
+
     while (1) {
+        // 构造要发送的CAN消息
         CAN_Message_t tx_msg = {
-            .id = 0x123, .length = 8,
-            .data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+            .id = 0x100 + (msg_id_counter % 0x10), // 消息ID递增
+            .length = 8,
+            .data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, (uint8_t)msg_id_counter}, // 数据也递增
+            .ide = CAN_Id_Standard, // 标准帧
+            .rtr = CAN_RTR_Data     // 数据帧
         };
-        if (CAN_Operations.SendMessage(can_dev, &tx_msg) == CAN_OK) {
-            // Log_Message(LOG_LEVEL_DEBUG, "[CAN] Sent message ID: 0x%03X", tx_msg.id);
+
+        // 发送CAN消息
+        if (g_can_ops.SendMessage(can_dev, &tx_msg) == CAN_OK) {
+            Log_Message(LOG_LEVEL_DEBUG, "[CAN] Sent message ID: 0x%03X, Data[7]=0x%02X.", tx_msg.id, tx_msg.data[7]);
+            msg_id_counter++;
         } else {
-            Log_Message(LOG_LEVEL_ERROR, "[CAN] Failed to send message");
+            Log_Message(LOG_LEVEL_ERROR, "[CAN] Failed to send message from CAN %p.", can_dev->instance);
         }
 
+        // 尝试接收CAN消息
         CAN_Message_t rx_msg;
-        if (CAN_Operations.ReceiveMessage(can_dev, &rx_msg, 1000) == CAN_OK) { // 1秒超时
-            // char data_str[24] = {0}; // 8 bytes * 3 chars/byte (XX ) = 24
-            // for (int i = 0; i < rx_msg.length && i < 8; i++) {
-            //     snprintf(data_str + i*3, 4, "%02X ", rx_msg.data[i]);
-            // }
-            // Log_Message(LOG_LEVEL_DEBUG, "[CAN] Recv ID: 0x%03X, Data: %s", rx_msg.id, data_str);
+        if (g_can_ops.ReceiveMessage(can_dev, &rx_msg, 50) == CAN_OK) { // 50ms超时
+            Log_Message(LOG_LEVEL_INFO, "[CAN] Recv ID: 0x%03X, Len: %u, Data: %02X %02X %02X %02X ...",
+                        rx_msg.id, rx_msg.length, rx_msg.data[0], rx_msg.data[1], rx_msg.data[2], rx_msg.data[3]);
+        } else {
+            // Log_Message(LOG_LEVEL_DEBUG, "[CAN] No message received from CAN %p within timeout.", can_dev->instance);
         }
-        if (g_rtos_ops && g_rtos_ops->Delay) g_rtos_ops->Delay(1000);
+        g_rtos_ops->Delay(100); // 任务延时
     }
 }
 
 /**
  * @brief SPI Flash 管理任务
+ * @param pvParameters 指向 SPI_Flash_Device_t 实例
  */
 void App_SPIFlashTask(void *pvParameters) {
     SPI_Flash_Device_t *flash_dev = (SPI_Flash_Device_t *)pvParameters;
     if (!flash_dev || !flash_dev->config) {
-        Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Invalid device parameter. Task suspending.");
-        if(g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
+        Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Invalid device parameter. Suspending task.");
+        if (g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
     }
     Log_Message(LOG_LEVEL_INFO, "[SPI Flash Task] Started.");
-    uint8_t test_val = 0;
+
+    uint8_t test_val_counter = 0;
+    uint32_t test_address = 0x000000; // 测试写入地址
+
     while (1) {
-        uint8_t write_buffer[4]; // 重命名
-        write_buffer[0] = test_val++;
-        write_buffer[1] = 0xBB;
-        write_buffer[2] = 0xCC;
-        write_buffer[3] = 0xDD;
+        uint8_t write_buffer[PAGE_SIZE]; // 使用PAGE_SIZE确保能写入一整页
+        // 填充写入缓冲区
+        for (uint16_t i = 0; i < PAGE_SIZE; i++) {
+            write_buffer[i] = test_val_counter + (i % 256);
+        }
+        
+        // 使用带擦除的写入操作
+        Flash_Status_t write_status = SPI_Flash_WriteWithErase(flash_dev, write_buffer, test_address, PAGE_SIZE);
 
-        uint32_t address = 0x000000; // 始终写入同一地址进行测试
-        uint16_t data_len = sizeof(write_buffer);
+        if (write_status == FLASH_OK) {
+            uint8_t read_buffer[PAGE_SIZE];
+            Flash_Status_t read_status = SPI_Flash_ReadData(flash_dev, read_buffer, test_address, PAGE_SIZE);
 
-        if (SPI_Flash_Write_With_Erase(flash_dev->config, write_buffer, address, data_len) == 0) { // 假设0是成功
-            uint8_t read_buffer[4]; // 重命名
-            if (SPI_Flash_ReadData(flash_dev->config, read_buffer, address, data_len) == FLASH_OK) {
-                if (memcmp(write_buffer, read_buffer, data_len) == 0) {
-                    // Log_Message(LOG_LEVEL_DEBUG, "[SPI Flash] R/W Test OK: %02X %02X %02X %02X",
-                    //             read_buffer[0], read_buffer[1], read_buffer[2], read_buffer[3]);
+            if (read_status == FLASH_OK) {
+                if (memcmp(write_buffer, read_buffer, PAGE_SIZE) == 0) {
+                    Log_Message(LOG_LEVEL_INFO, "[SPI Flash] R/W Test OK. Addr: 0x%08lX, Data[0]=0x%02X.", test_address, read_buffer[0]);
                 } else {
-                    Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] R/W Mismatch!");
+                    Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] R/W Mismatch! Addr: 0x%08lX.", test_address);
+                    // 可以打印出不匹配的部分，帮助调试
                 }
             } else {
-                Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Read failed after write.");
+                Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Read failed after write. Status: %d.", read_status);
             }
         } else {
-            Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Write with erase failed.");
+            Log_Message(LOG_LEVEL_ERROR, "[SPI Flash] Write with erase failed. Status: %d.", write_status);
         }
-        if (g_rtos_ops && g_rtos_ops->Delay) g_rtos_ops->Delay(5000);
+
+        test_val_counter++; // 更新测试值
+        // test_address = (test_address + PAGE_SIZE) % (16 * SECTOR_SIZE); // 移动到下一个地址进行测试
+        g_rtos_ops->Delay(5000); // 延时5秒
     }
 }
 
-// 可以将此代码段添加到 app_tasks.c 的末尾
+/**
+ * @brief I2C 测试任务 (使用PCF8574进行IO控制)
+ * @param pvParameters 指向 PCF8574_Device_t 实例
+ */
+void App_I2CTask(void *pvParameters) {
+    PCF8574_Device_t *pcf8574_dev = (PCF8574_Device_t *)pvParameters;
+    if (!pcf8574_dev) {
+        Log_Message(LOG_LEVEL_ERROR, "[I2C Task] Invalid PCF8574 device parameter. Suspending task.");
+        if (g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
+    }
+    Log_Message(LOG_LEVEL_INFO, "[I2C Task] Started for PCF8574 on I2C bus %p.", pcf8574_dev->i2c_bus->scl_port);
+
+    uint8_t io_state = 0x01; // 初始IO状态，逐位点亮
+
+    while (1) {
+        // 1. 写入PCF8574，控制IO口 (例如点亮一个LED)
+        I2C_Status_t write_status = PCF8574_WriteByte(pcf8574_dev, io_state);
+        if (write_status == I2C_OK) {
+            Log_Message(LOG_LEVEL_INFO, "[I2C] PCF8574 Write OK: 0x%02X.", io_state);
+        } else {
+            Log_Message(LOG_LEVEL_ERROR, "[I2C] PCF8574 Write Failed. Status: %d.", write_status);
+        }
+
+        g_rtos_ops->Delay(500); // 延时500ms
+
+        // 2. 从PCF8574读取IO口状态 (例如读取按键输入)
+        uint8_t read_data = 0;
+        I2C_Status_t read_status = PCF8574_ReadByte(pcf8574_dev, &read_data);
+        if (read_status == I2C_OK) {
+            Log_Message(LOG_LEVEL_INFO, "[I2C] PCF8574 Read OK: 0x%02X.", read_data);
+            // 这里可以根据读取到的数据做进一步处理，例如判断按键是否按下
+        } else {
+            Log_Message(LOG_LEVEL_ERROR, "[I2C] PCF8574 Read Failed. Status: %d.", read_status);
+        }
+
+        // 循环切换IO状态
+        io_state = (io_state << 1) | ((io_state >> 7) & 0x01); // 循环左移，实现流水灯效果
+        if (io_state == 0) io_state = 0x01; // 防止变为0导致所有灯灭
+
+        g_rtos_ops->Delay(500); // 延时500ms
+    }
+}
+
+
+/*
+ * =====================================================================================
+ * FreeRTOS 钩子函数 (通常放在 app_tasks.c 的末尾)
+ * =====================================================================================
+ */
 
 /**
  * @brief  当 pvPortMalloc() 返回 NULL 时，此钩子函数会被调用。
@@ -527,8 +597,9 @@ void vApplicationMallocFailedHook(void)
 {
     // 在这里设置一个断点！
     // 如果程序停在这里，就说明是总堆空间(configTOTAL_HEAP_SIZE)不足导致的。
-    taskDISABLE_INTERRUPTS();
-    for(;;)
+    Log_Message(LOG_LEVEL_ERROR, "FATAL: FreeRTOS Malloc Failed! Heap size might be too small.");
+    taskDISABLE_INTERRUPTS(); // 禁用所有中断
+    for(;;) // 进入死循环
     {
     }
 }
@@ -546,8 +617,8 @@ void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
     // 如果程序停在这里，就说明名为 pcTaskName 的任务发生了栈溢出。
     // 你需要增加创建该任务时分配的堆栈大小。
     Log_Message(LOG_LEVEL_ERROR, "FATAL: Stack overflow in task: %s", pcTaskName);
-    taskDISABLE_INTERRUPTS();
-    for(;;)
+    taskDISABLE_INTERRUPTS(); // 禁用所有中断
+    for(;;) // 进入死循环
     {
     }
 }
