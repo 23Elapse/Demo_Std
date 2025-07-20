@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-06-08 16:13:58
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-08 19:08:55
+ * @LastEditTime: 2025-07-13 17:22:30
  * @FilePath: \Demo_backup\Middlewares\ring_buffer.h
  * @Description: 
  * 
@@ -37,12 +37,12 @@ typedef enum
 // 环形缓冲区结构体
 typedef struct
 {
-    uint8_t* buffer;
-    uint32_t element_size;
-    uint32_t capacity;
-    uint32_t head;
-    uint32_t tail;
-    volatile uint32_t count; // 声明为volatile，因为可能在中断和主线程中同时访问
+    uint8_t* buffer;                // 缓冲区指针
+    uint32_t element_size;          // 元素大小 (字节)
+    uint32_t capacity;              // 缓冲区容量 (元素个数)
+    uint32_t head;                  // 头指针 (读位置)
+    uint32_t tail;                  // 尾指针 (写位置)  
+    volatile uint32_t count;        // 当前已存储的元素数量 声明为volatile，因为可能在中断和主线程中同时访问
     void* sem; // RTOS 信号量句柄 (计数型)
 } RingBuffer_t;
 

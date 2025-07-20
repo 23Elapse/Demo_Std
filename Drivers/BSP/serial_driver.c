@@ -239,7 +239,7 @@ void Serial_Driver_IRQHandler(Serial_Device_t* dev) {
 
         if (rb_status != RB_OK) {
             // 如果缓冲区满，记录警告。不应影响正常中断流程。
-            Log_Message(LOG_LEVEL_WARNING, "[SERIAL] IRQHandler: RX buffer full for %p.", dev->instance);
+            Log_Message(LOG_LEVEL_INFO, "[SERIAL] IRQHandler: RX buffer full for %p.", dev->instance);
         }
 
         // 清除接收中断标志位 (部分STM32器件通过读取DR寄存器自动清除，但显式清除更安全)

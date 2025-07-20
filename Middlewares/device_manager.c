@@ -18,16 +18,16 @@ void DeviceManager_Init(Device_Manager_t* mgr, Device_Handle_t* device_array, ui
         return;
     }
 
-    mgr->devices = device_array;
-    mgr->max_devices = max_size;
-    mgr->count = 0;
-    mgr->mutex = g_rtos_ops->SemaphoreCreate();
+    mgr->devices = device_array;                        //设备句柄数组指针，指向外部分配的数组
+    mgr->max_devices = max_size;                        //设备句柄数组的最大容量
+    mgr->count = 0;                                     //设备数量初始化为0，每增加一个设备就加1
+    mgr->mutex = g_rtos_ops->SemaphoreCreate();         //创建信号量用于保护设备管理器
     if (!mgr->mutex) {
         Log_Message(LOG_LEVEL_ERROR, "Error: DeviceManager mutex creation failed.");
         return;
     }
 
-    memset(mgr->devices, 0, sizeof(Device_Handle_t) * max_size);
+    memset(mgr->devices, 0, sizeof(Device_Handle_t) * max_size);    // 清空设备句柄数组，确保所有槽位初始为0
     Log_Message(LOG_LEVEL_INFO, "[DeviceMgr] Initialized with capacity for %d devices.", max_size);
 }
 
@@ -50,7 +50,7 @@ Device_Handle_t* DeviceManager_Register(Device_Manager_t* mgr, const void* devic
     
     // 检查是否重复注册 (同一类型和ID)
     for (uint8_t i = 0; i < mgr->count; i++) {
-        if (mgr->devices[i].type == type && mgr->devices[i].id == id) {
+        if (mgr->devices[i].type == type && mgr->devices[i].id == id) { // 找到同类型同ID的设备 
             Log_Message(LOG_LEVEL_ERROR, "Error: Device with type %d and ID %d already registered.", type, id);
             g_rtos_ops->SemaphoreGive(mgr->mutex);
             return NULL;

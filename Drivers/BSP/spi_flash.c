@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-19 00:03:34
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-14 18:25:17
+ * @LastEditTime: 2025-07-07 20:37:04
  * @FilePath: \Demo_backup\Drivers\BSP\spi_flash.c
  * @Description: SPI Flash 驱动实现，支持 RTOS 抽象和优化 (Refactored)
  *
@@ -185,7 +185,12 @@ static Flash_Status_t write_enable(SPI_Flash_Config_t *config)
  * 公共API函数实现
  * =====================================================================================
  */
-
+SPI_Hw_Ops_t g_default_spi_hw_ops = {
+    .transfer = default_spi_transfer,
+    .cs_low = default_cs_low,
+    .cs_high = default_cs_high,
+    .dma_transfer = default_dma_transfer
+};
 /**
  * @brief 初始化 SPI Flash 硬件接口 (仅SPI外设和GPIO)
  * @param config Flash 配置结构体指针
@@ -198,21 +203,12 @@ Flash_Status_t SPI_Flash_Hardware_Init(SPI_Flash_Config_t *config)
         return FLASH_INVALID_PARAM;
     }
 
-    // 设置默认硬件操作回调，如果用户没有提供自定义实现
-    // 确保这些函数指针只设置一次，或者由外部统一管理
     if (!config->hw_ops) {
-        static SPI_Hw_Ops_t default_ops = {
-            .transfer = default_spi_transfer,
-            .cs_low = default_cs_low,
-            .cs_high = default_cs_high,
-            .dma_transfer = default_dma_transfer
-        };
-        config->hw_ops = &default_ops;
-        config->hw_context = config; // 默认上下文指向配置自身
-    } else if (!config->hw_context) {
-        config->hw_context = config; // 如果hw_ops已设置，但hw_context为空，则默认指向config
+        config->hw_ops = &g_default_spi_hw_ops;
     }
-
+    if (!config->hw_context) {
+        config->hw_context = config;
+    }
     // 1. 使能时钟
     RCC_AHB1PeriphClockCmd(config->GPIO_Clk, ENABLE); // GPIO时钟
     if (config->SPIx == SPI1 || config->SPIx == SPI4 || config->SPIx == SPI5 || config->SPIx == SPI6) {
@@ -232,14 +228,6 @@ Flash_Status_t SPI_Flash_Hardware_Init(SPI_Flash_Config_t *config)
     GPIO_SetBits(config->GPIO_Port, config->CS_Pin); // CS 默认拉高
 
     // 3. 配置 SPI GPIO 引脚复用功能
-    // 假设这些引脚都属于同一个端口，且复用功能一致
-    // 注意：GPIO_PinSourcex 需要根据实际引脚和SPI外设进行配置，这里可能需要更精确的查找表
-    // 针对F407xx的SPI5 F6,F7,F8,F9:
-    // PF6 -> SPI5_NSS (如果NSS是硬件管理)
-    // PF7 -> SPI5_SCK
-    // PF8 -> SPI5_MISO
-    // PF9 -> SPI5_MOSI
-    // 这里只初始化SCK, MISO, MOSI为复用功能
     GPIO_PinAFConfig(config->GPIO_Port, config->SCK_Pin, GPIO_AF_SPI5);
     GPIO_PinAFConfig(config->GPIO_Port, config->MISO_Pin, GPIO_AF_SPI5);
     GPIO_PinAFConfig(config->GPIO_Port, config->MOSI_Pin, GPIO_AF_SPI5);

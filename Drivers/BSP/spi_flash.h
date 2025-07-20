@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-02-19 00:03:34
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-14 18:00:00
- * @FilePath: \Demo\Drivers\BSP\Inc\spi_flash.h
+ * @LastEditTime: 2025-07-07 20:37:35
+ * @FilePath: \Demo_backup\Drivers\BSP\spi_flash.h
  * @Description: SPI Flash 驱动头文件，支持 RTOS 抽象和优化 (Refactored)
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -177,7 +177,7 @@ typedef struct
 
 // 声明全局的Flash配置实例 (在 dev_config.c 中定义)
 extern SPI_Flash_Config_t g_flash_config;
-
+extern SPI_Hw_Ops_t g_default_spi_hw_ops;
 /**
  * @brief 初始化 SPI Flash 硬件接口 (仅SPI外设和GPIO)
  * @param config Flash 配置结构体指针

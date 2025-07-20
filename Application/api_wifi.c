@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:50:17
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-14 20:02:40
+ * @LastEditTime: 2025-07-13 17:48:25
  * @FilePath: \Demo_backup\Application\api_wifi.c
  * @Description: ESP32 WiFi 和 BLE 模块统一驱动实现 (Refactored)
  *
@@ -91,11 +91,14 @@ static AT_Status_t _ESP32_SendATCommand_Internal(ESP32_Shared_Device_t *dev, con
     RingBuffer_Clear(&dev->serial_dev->rx_buffer);
 
     // 发送指令
-    if (Serial_Driver_SendData(dev->serial_dev, (uint8_t*)cmd->at_cmd, strlen(cmd->at_cmd)) != SERIAL_OK) {
-        Log_Message(LOG_LEVEL_ERROR, "[%s AT] SendATCommand_Internal: Failed to send cmd: %s", log_prefix, cmd->description);
-        return AT_ERR_SEND_FAILED;
+    if (strlen(cmd->at_cmd) > 0) {
+        if (Serial_Driver_SendData(dev->serial_dev, (uint8_t*)cmd->at_cmd, strlen(cmd->at_cmd)) != SERIAL_OK) {
+            Log_Message(LOG_LEVEL_ERROR, "[%s AT] SendATCommand_Internal: Failed to send cmd: %s", log_prefix, cmd->description);
+            return AT_ERR_SEND_FAILED;
+        }
+    } else {
+        Log_Message(LOG_LEVEL_DEBUG, "[%s AT] No AT command sent, waiting for response only.", log_prefix);
     }
-
     // 等待响应
     uint8_t local_rx_buffer[TCP_BUFFER_SIZE + 50] = {0}; // 增加一些额外空间用于响应头尾
     uint16_t rx_len = 0;
@@ -237,15 +240,15 @@ static AT_Status_t ESP32_AT_SendData(ESP32_Shared_Device_t *dev, const uint8_t *
 
     // 3. 等待 "SEND OK" 响应
     // 注意：AT+CIPSEND的"SEND OK"响应时间可能较长，且依赖网络。
-    // AT_Cmd_Config_t confirm_cmd = {"", "SEND OK", 5000, 0, "Data Send Confirm"}; // at_cmd为空，只等待响应
-    // status = _ESP32_SendATCommand_Internal(dev, &confirm_cmd, log_prefix);
-    //
-    // if (status != AT_OK) {
-    //     Log_Message(LOG_LEVEL_WARNING, "[%s Send] Did not receive 'SEND OK'. Status: %d. Data might have been sent.", log_prefix, status);
-    //     // 根据应用需求，即使没有SEND OK，数据也可能已发送。
-    // } else {
-    //     Log_Message(LOG_LEVEL_INFO, "[%s Send] Sent %u bytes successfully.", log_prefix, length);
-    // }
+    AT_Cmd_Config_t confirm_cmd = {"", "SEND OK", 5000, 0, "Data Send Confirm"}; // at_cmd为空，只等待响应
+    status = _ESP32_SendATCommand_Internal(dev, &confirm_cmd, log_prefix);
+    
+    if (status != AT_OK) {
+        Log_Message(LOG_LEVEL_WARNING, "[%s Send] Did not receive 'SEND OK'. Status: %d. Data might have been sent.", log_prefix, status);
+        // 根据应用需求，即使没有SEND OK，数据也可能已发送。
+    } else {
+        Log_Message(LOG_LEVEL_INFO, "[%s Send] Sent %u bytes successfully.", log_prefix, length);
+    }
 
     // 由于某些固件可能在发送数据后立即返回 SEND OK，或者存在其他延迟，
     // 这里采取一个更灵活的等待方式：等待一段时间，看看串口是否空闲。

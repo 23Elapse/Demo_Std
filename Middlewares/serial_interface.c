@@ -113,9 +113,6 @@ static Serial_Status_t Serial_Interface_Init(Serial_Device_t *dev)
         return SERIAL_ERR_INIT;
     }
 
-    // 初始化 Protocol_Handler (如果它有全局初始化函数)
-    // Protocol_Init(); // 假设 Protocol_Init 是幂等的或只调用一次
-
     // 初始化 RS485 发送队列 (如果尚未初始化)
     if (s_rs485_tx_queue.mutex == NULL) {
         s_rs485_tx_queue.mutex = g_rtos_ops->SemaphoreCreate();

@@ -88,7 +88,6 @@ RB_Status RingBuffer_Read(RingBuffer_t* rb, void* data) {
     rb->head = (rb->head + 1) % rb->capacity;
     rb->count--;
     // 结束临界区
-    
     return RB_OK;
 }
 
