@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:52:45
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-06-14 18:57:30
- * @FilePath: \Demo_backup\Application\api_wifi.h
+ * @LastEditTime: 2025-07-21 21:06:36
+ * @FilePath: \Demo\Application\api_wifi.h
  * @Description: ESP32 WiFi 和 BLE 模块统一驱动头文件 (Refactored)
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -24,6 +24,21 @@
 #define TCP_PORT        "5000"
 #define UART_TIMEOUT    5000 // 通用串口操作超时
 #define TCP_BUFFER_SIZE 256 // TCP数据缓冲区大小
+
+#define AKT_DEV_ID      "14456411462837499097" // AKT设备ID
+#define AKT_DEV_SECRET  "12345678"  // AKT设备密钥
+
+#define MAX_FRAME_SIZE     512  // 单帧最大数据长度
+#define CRC16_LEN          4    // CRC16以ASCII十六进制表示，长度固定4字节
+#define PEEK_BUF_SIZE      128  // 从环形缓冲区中预读的最大字节数
+
+/**
+ * @brief 前缀定义结构体
+ */
+typedef struct {
+    const char* prefix;
+    uint8_t prefix_len;
+} AT_DataPrefix_t;
 
 /**
  * @brief AT 指令错误码枚举
@@ -53,8 +68,22 @@ typedef struct {
     uint32_t timeout_ms;
     uint8_t retries;
     const char* description;
+    void (*callback)(const char* resp); // 回调函数，指令完成后调用
 } AT_Cmd_Config_t;
+/**
+ * @brief ESP32 设备信息结构体
+ * 保存设备的版本、IP地址、MAC地址、SSID、密码等信息
+ */
+typedef struct {
+    char version[32];      // ESP32固件版本号
+    char ip_addr[16];      // IP地址 (xxx.xxx.xxx.xxx)
+    char mac_addr[18];     // MAC地址 (XX:XX:XX:XX:XX:XX)
+    char ssid[32];         // WiFi SSID
+    char password[64];     // WiFi密码
+} ESP32_Device_Info_t;
 
+// 声明全局唯一的ESP32设备信息实例
+extern ESP32_Device_Info_t g_esp32_info;
 /**
  * @brief ESP32 通信类型枚举
  * 用于区分 AT 命令是针对 WiFi 还是 BLE 功能
@@ -89,6 +118,30 @@ void ESP32_Hw_Init(ESP32_Shared_Device_t *dev);
  * @param dev 指向ESP32共享设备实例
  */
 void ESP32_Hw_Reset(ESP32_Shared_Device_t *dev);
+
+/**
+ * @brief 回调函数：解析AT+CIPSTAMAC?响应并保存MAC地址
+ * @param response 响应字符串
+ */
+void get_mac_addr_callback(const char *response);
+
+/**
+ * @brief 回调函数：解析AT+CIPSTA?响应并保存IP地址
+ * @param response 响应字符串
+ */
+void get_ip_addr_callback(const char *response);
+
+/**
+ * @brief 回调函数：解析AT+GMR响应并保存ESP32版本信息
+ * @param response 响应字符串
+ */
+void get_version_callback(const char *response);
+
+/**
+ * @brief 回调函数：设置WiFi SSID和密码
+ * @param response 响应字符串
+ */
+void set_ssid_password_callback(const char *response);
 
 /**
  * @brief ESP32 AT 命令操作接口

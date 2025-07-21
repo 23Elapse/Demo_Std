@@ -330,8 +330,12 @@ void App_WifiBLETask(void *pvParameters)
         if (!wifi_app_initialized) {
             Log_Message(LOG_LEVEL_TEST, "[WiFi] Attempting application layer initialization...");
             AT_Cmd_Config_t init_cmds[] = {
-                {"AT+CWMODE=1\r\n", "OK", 2000, 2, "Set Station Mode"},
-                {"AT+CWJAP=\"" WIFI_SSID "\",\"" WIFI_PASSWORD "\"\r\n", "OK", 15000, 3, "Connect to WiFi AP"},
+                {"ATE1\r\n", "OK", 2000, 2, "Echo Test",NULL},
+                {"AT+GMR\r\n", "OK", 2000, 2, "Get Version",get_version_callback}, // 获取版本信息
+                {"AT+CWMODE=1\r\n", "OK", 2000, 2, "Set Station Mode",NULL},
+                {"AT+CWJAP=\"" WIFI_SSID "\",\"" WIFI_PASSWORD "\"\r\n", "OK", 15000, 3, "Connect to WiFi AP",set_ssid_password_callback},
+                {"AT+CIPSTAMAC?\r\n", "OK", 2000, 2, "Get Station MAC",get_mac_addr_callback},
+                {"AT+CIPSTA?\r\n", "OK", 2000, 2, "Get Station IP",get_ip_addr_callback},
                 // Add more WiFi specific init commands here if needed
                 {NULL, NULL, 0, 0, NULL} // 哨兵值
             };
@@ -356,40 +360,6 @@ void App_WifiBLETask(void *pvParameters)
                     esp32_ready = 0; // 标记ESP32需要重新检查就绪状态
                     ready_retry_count = 0; // 重置ESP32就绪检查计数
                     wifi_app_initialized = 0; // 确保下次循环重新初始化应用层
-                    g_rtos_ops->Delay(5000); // 长延时后从头开始
-                    continue; // 返回到外层while，重新检查esp32_ready
-                }
-                g_rtos_ops->Delay(3000); // 应用初始化失败后的短延时重试
-            }
-        }
-        if (!tcp_app_initialized) {
-            Log_Message(LOG_LEVEL_TEST, "[WiFi] TCP Application Layer not initialized yet. Initializing...");
-            // 这里可以添加TCP应用层初始化逻辑，例如连接到服务器等
-            static char cmd_str[64];
-            snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", TCP_SERVER_IP, TCP_PORT);
-            AT_Cmd_Config_t tcp_init_cmds[] = {
-                {cmd_str, "OK", 10000, 1, "Connect to TCP Server"},
-                {NULL, NULL, 0, 0, NULL} // 哨兵值
-            };
-            uint8_t tcp_init_success = 1;
-            for (const AT_Cmd_Config_t *cmd = tcp_init_cmds; cmd->at_cmd != NULL; cmd++) {
-                if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, cmd, ESP32_COMM_TYPE_WIFI) != AT_OK) {
-                    tcp_init_success = 0;
-                    break;
-                }
-                g_rtos_ops->Delay(200); // 命令间延时
-            }
-
-            if (tcp_init_success) {
-                tcp_app_initialized = 1;
-                tcp_init_retry_count = 0;
-                Log_Message(LOG_LEVEL_TEST, "[WiFi] TCP Application Layer Initialization successful.");
-            } else {
-                tcp_init_retry_count++;
-                Log_Message(LOG_LEVEL_WARNING, "[WiFi] TCP App Layer Init failed, retry %u/%u.", tcp_init_retry_count, max_app_init_retries);
-                if (tcp_init_retry_count >= max_app_init_retries) {
-                    Log_Message(LOG_LEVEL_ERROR, "[WiFi] Max TCP App Layer Init retries. Triggering ESP32 full reset cycle.");
-                    tcp_app_initialized = 0; // 确保下次循环重新初始化应用层
                     g_rtos_ops->Delay(5000); // 长延时后从头开始
                     continue; // 返回到外层while，重新检查esp32_ready
                 }
@@ -421,8 +391,44 @@ void App_WifiBLETask(void *pvParameters)
                 // 对于BLE，失败后暂时不强制ESP32重置，而是等待下一次循环尝试
             }
         }
+        // --- 4. TCP 应用层初始化 ---
+        if (!tcp_app_initialized) {
+            Log_Message(LOG_LEVEL_TEST, "[WiFi] TCP Application Layer not initialized yet. Initializing...");
+            // 这里可以添加TCP应用层初始化逻辑，例如连接到服务器等
+            static char cmd_str[64];
+            // snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", TCP_SERVER_IP, TCP_PORT);
+            snprintf(cmd_str, sizeof(cmd_str), "AT+ATKCLDSTA=\"%s\",\"%s\"\r\n", AKT_DEV_ID, AKT_DEV_SECRET);
+            AT_Cmd_Config_t tcp_init_cmds[] = {
+                {cmd_str, "CLOUD CONNECTED", 10000, 1, "Connect to TCP Server",NULL},
+                {NULL, NULL, 0, 0, NULL,NULL} // 哨兵值
+            };
+            uint8_t tcp_init_success = 1;
+            for (const AT_Cmd_Config_t *cmd = tcp_init_cmds; cmd->at_cmd != NULL; cmd++) {
+                if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, cmd, ESP32_COMM_TYPE_WIFI) != AT_OK) {
+                    tcp_init_success = 0;
+                    break;
+                }
+                g_rtos_ops->Delay(200); // 命令间延时
+            }
 
-        // --- 4. WiFi/BLE 定期功能测试 ---
+            if (tcp_init_success) {
+                tcp_app_initialized = 1;
+                tcp_init_retry_count = 0;
+                Log_Message(LOG_LEVEL_TEST, "[WiFi] TCP Application Layer Initialization successful.");
+            } else {
+                tcp_init_retry_count++;
+                Log_Message(LOG_LEVEL_WARNING, "[WiFi] TCP App Layer Init failed, retry %u/%u.", tcp_init_retry_count, max_app_init_retries);
+                if (tcp_init_retry_count >= max_app_init_retries) {
+                    Log_Message(LOG_LEVEL_ERROR, "[WiFi] Max TCP App Layer Init retries. Triggering ESP32 full reset cycle.");
+                    tcp_app_initialized = 0; // 确保下次循环重新初始化应用层
+                    g_rtos_ops->Delay(5000); // 长延时后从头开始
+                    continue; // 返回到外层while，重新检查esp32_ready
+                }
+                g_rtos_ops->Delay(3000); // 应用初始化失败后的短延时重试
+            }
+        }
+
+        // --- 5. WiFi/BLE 定期功能测试 ---
         if (wifi_app_initialized && tcp_app_initialized) {
             // char cmd_str[64];
             // snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", TCP_SERVER_IP, TCP_PORT);
@@ -447,8 +453,8 @@ void App_WifiBLETask(void *pvParameters)
                     Log_Message(LOG_LEVEL_ERROR, "[WiFi] Failed to send TCP data.");
                 }
 
-                AT_Cmd_Config_t close_cmd = {"AT+CIPCLOSE\r\n", "OK", 2000, 0, "Disconnect TCP"};
-                g_esp32_at_ops.SendATCommand(&g_esp32_dev, &close_cmd, ESP32_COMM_TYPE_WIFI);
+                // AT_Cmd_Config_t close_cmd = {"AT+CIPCLOSE\r\n", "OK", 2000, 0, "Disconnect TCP"};
+                // g_esp32_at_ops.SendATCommand(&g_esp32_dev, &close_cmd, ESP32_COMM_TYPE_WIFI);
             } 
             // else {
             //     Log_Message(LOG_LEVEL_WARNING, "[WiFi] Failed to connect TCP. Checking AP connection...");

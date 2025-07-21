@@ -91,6 +91,66 @@ RB_Status RingBuffer_Read(RingBuffer_t* rb, void* data) {
     return RB_OK;
 }
 
+/**
+ * @brief 从环形缓冲区中读取不消费的数据（仅预读）
+ * @param rb 环形缓冲区对象
+ * @param dest 存储预读数据的缓冲区
+ * @param max_len 最大预读长度
+ * @return 实际读取的字节数
+ */
+size_t RingBuffer_Peek(RingBuffer_t* rb, uint8_t* dest, size_t max_len)
+{
+    if (!rb || !rb->buffer || !dest || max_len == 0) return 0;
+
+    size_t readable = rb->count * rb->element_size;
+    size_t to_copy = (readable < max_len) ? readable : max_len;
+
+    for (size_t i = 0; i < to_copy; i++) {
+        size_t idx = (rb->head * rb->element_size + i) % (rb->capacity * rb->element_size);
+        dest[i] = rb->buffer[idx];
+    }
+
+    return to_copy;
+}
+
+/**
+ * @brief 丢弃缓冲区中的前 n 个字节
+ * @param rb 环形缓冲区对象
+ * @param len 要丢弃的字节数
+ */
+void RingBuffer_Drop(RingBuffer_t* rb, size_t len)
+{
+    if (!rb || len == 0 || !rb->buffer) return;
+
+    size_t drop_elements = len / rb->element_size;
+    if (drop_elements > rb->count) drop_elements = rb->count;
+
+    rb->head = (rb->head + drop_elements) % rb->capacity;
+    rb->count -= drop_elements;
+}
+
+/**
+ * @brief 一次性读取多个字节（元素）到目标缓冲区
+ * @param rb 环形缓冲区对象
+ * @param dest 目标缓存区
+ * @param len 字节长度
+ * @return 实际读取的长度
+ */
+size_t RingBuffer_ReadMulti(RingBuffer_t* rb, uint8_t* dest, size_t len)
+{
+    if (!rb || !rb->buffer || !dest || len == 0) return 0;
+
+    size_t total_read = 0;
+    while (len > 0 && rb->count > 0) {
+        memcpy(dest + total_read, rb->buffer + rb->head * rb->element_size, rb->element_size);
+        rb->head = (rb->head + 1) % rb->capacity;
+        rb->count--;
+        total_read += rb->element_size;
+        len -= rb->element_size;
+    }
+    return total_read;
+}
+
 void RingBuffer_Clear(RingBuffer_t* rb) {
     if (!rb || !rb->buffer) return;
 

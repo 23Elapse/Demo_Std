@@ -185,6 +185,11 @@
           <WinNumber>1</WinNumber>
           <ItemText>g_device_array</ItemText>
         </Ww>
+        <Ww>
+          <count>7</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_esp32_info</ItemText>
+        </Ww>
       </WatchWindow1>
       <MemoryWindow1>
         <Mm>
