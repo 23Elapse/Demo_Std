@@ -339,7 +339,19 @@ static inline void InitPhaseControl_OnResponse(InitPhaseControl_t *ctrl) {
     uint8_t stage_bit = (1 << ctrl->current_stage);
     ctrl->finished_mask |= stage_bit;       // 标记当前阶段完成
     ctrl->trigger_mask &= ~stage_bit;       // 清除触发标志
-    ctrl->completed = 1;                     // 当前阶段完成，等待外部触发下一阶段
+
+    // 找下一个需要发送的阶段
+    for (int i = ctrl->current_stage + 1; i < INIT_INDEX_COUNT; i++) {
+        uint8_t bit = (1 << i);
+        if ((ctrl->mask & bit) && !(ctrl->finished_mask & bit)) {
+            ctrl->current_stage = i;
+            ctrl->completed = 0;
+            return;
+        }
+    }
+
+    // 如果没有下一个未完成的启用阶段，则全部完成
+    ctrl->completed = ((ctrl->finished_mask & ctrl->mask) == ctrl->mask);
 }
 
 // 外部调用，设置触发标志（某阶段需要重新发送），切换当前阶段索引
@@ -378,6 +390,11 @@ void SendHeartbeatCommand(void);
 void SendRealtimeData(void);
 void SendHistoryData(void);
 
+// 模拟接收成功响应（这里直接返回true，模拟成功）
+int ReceiveStageResponse(uint8_t stage) {
+    printf("Received response for stage %d\n", stage);
+    return 1; // 模拟总是成功
+}
 // 周期发送检查和执行
 static inline void PeriodicSendControl_CheckAndSend(PeriodicSendControl_t *ctrl) {
     uint32_t now = GetTickMs();
@@ -391,9 +408,22 @@ static inline void PeriodicSendControl_CheckAndSend(PeriodicSendControl_t *ctrl)
     }
 }
 
+// 假设此结构体定义在共享头文件中，并由主任务循环持有
+extern InitPhaseControl_t init_ctrl; // 声明全局控制结构体
+
+// 其他任务调用此函数触发某阶段重发
+void ExternalTrigger_ReSendStage(InitStageMask_t stage) {
+    printf("[External Task] Trigger resend stage mask: 0x%02X\n", stage);
+    InitPhaseControl_TriggerStage(&init_ctrl, stage);
+}
+
+// 主循环任务中定义控制结构体（简化示例）
+InitPhaseControl_t init_ctrl;
+
+
 // 主任务循环示例（结合阶段顺序和周期发送）
 void WifiTaskLoop(void) {
-    static InitPhaseControl_t init_ctrl;
+    // static InitPhaseControl_t init_ctrl;
     static PeriodicSendControl_t periodic_ctrl;
     static uint8_t initialized = 0;
 
@@ -414,6 +444,11 @@ void WifiTaskLoop(void) {
                 case INIT_INDEX_HEARTBEAT:     SendHeartbeatCommand(); break;
                 default: break;
             }
+        }
+        if (ReceiveStageResponse(init_ctrl.current_stage)) {
+            Log_Message(LOG_LEVEL_INFO, "[WIFI] Stage %d response received.", init_ctrl.current_stage);
+            // 收到当前阶段响应，标记完成
+            InitPhaseControl_OnResponse(&init_ctrl);
         }
     } else {
         // 所有初始化阶段完成后，执行周期性数据发送
