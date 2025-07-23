@@ -1,8 +1,53 @@
 #include "tsk_wifi.h"
 
-static uint8_t wifi_app_initialized = 0; // WiFi应用层初始化标志
-static uint8_t ble_app_initialized = 0;  // BLE应用层初始化标志
-static uint8_t tcp_app_initialized = 0;  // TCP应用层初始化标志
+
+typedef union {
+    struct {
+        uint8_t wifi_app_init   : 1;
+        uint8_t ble_app_init    : 1;
+        uint8_t tcp_app_init    : 1;
+        uint8_t wifi_init_done  : 1;
+        uint8_t reserved        : 4;
+    } bits;
+    uint8_t all;
+} AppInitFlags_t;
+
+// Encapsulate stage index for multi-stage init
+typedef struct {
+    uint8_t current;    // current stage index
+    uint8_t count;      // total stages
+} StageIndex_t;
+
+// Aggregated status context
+typedef struct {
+    AppInitFlags_t    init_flags;
+    StageIndex_t      wifi_stage;
+    // future: other channels stage index (e.g. ble_stage)
+} AppStatus_t;
+
+// Initialize status context
+static inline void AppStatus_Reset(AppStatus_t *status) {
+    status->init_flags.all = 0;
+    status->wifi_stage.current = 0;
+    status->wifi_stage.count = INIT_STAGE_COUNT;
+}
+
+// Helpers
+static inline uint8_t AppStatus_IsWifiReady(const AppStatus_t *status) {
+    return status->init_flags.bits.wifi_app_init && status->init_flags.bits.wifi_init_done;
+}
+
+static inline void AppStatus_SetWifiAppInit(AppStatus_t *status) {
+    status->init_flags.bits.wifi_app_init = 1;
+}
+
+static inline void AppStatus_SetWifiInitDone(AppStatus_t *status) {
+    status->init_flags.bits.wifi_init_done = 1;
+}
+
+static AppInitFlags_t app_init_flags = { .all = 0 };
+
+
 static uint32_t msg_counter = 0;
 static uint8_t wifi_send_buf[5000]; // 共享缓冲区
 
@@ -25,9 +70,6 @@ const InitStageDynamic_t wifi_init_stages[] = {
     { INIT_STAGE_TIME_SYNC,   "[ACK] TIME_SYNC_OK" },
     { 0xFF, NULL } // 结束标记
 };
-
-// 获取系统毫秒时间（请根据实际平台修改）
-extern uint32_t GetSysTickMs(void);
 
 
 void Process_Command(Comm_Channel_t channel, const char *cmd_str)
@@ -79,7 +121,7 @@ void Handle_Comm_Channel(Comm_Channel_t channel, uint32_t interval_ms)
 
     const char *tag = (channel == COMM_TCP) ? "TCP" : "BLE";
     ESP32_Comm_Type_t esp32_comm_type = (channel == COMM_TCP) ? ESP32_COMM_TYPE_WIFI : ESP32_COMM_TYPE_BLE;
-    uint8_t is_initialized = (channel == COMM_TCP) ? (wifi_app_initialized && tcp_app_initialized) : ble_app_initialized;
+    uint8_t is_initialized = (channel == COMM_TCP) ? (app_init_flags.bits.wifi_app_init && app_init_flags.bits.tcp_app_init) : app_init_flags.bits.ble_app_init;
 
     if (!is_initialized) return;
 
@@ -212,24 +254,226 @@ void ServerCommProcess_HandleAck(const InitStageDynamic_t *stages,
     }
 }
 
-void WifiTaskLoop(void)
-{
-    // 先做多阶段初始化发送
-    ServerCommProcess(wifi_send_buf, sizeof(wifi_send_buf),
-                      wifi_init_stages,
-                      &wifi_stage_idx,
-                      &wifi_init_done,
-                      ESP32_COMM_TYPE_WIFI,
-                      "WIFI");
+// void WifiTaskLoop(void)
+// {
+//     // 先做多阶段初始化发送
+//     ServerCommProcess(wifi_send_buf, sizeof(wifi_send_buf),
+//                       wifi_init_stages,
+//                       &wifi_stage_idx,
+//                       &wifi_init_done,
+//                       ESP32_COMM_TYPE_WIFI,
+//                       "WIFI");
 
-    // 处理接收ACK，调用时机由接收数据事件触发
-    /*
-    if (recv_data_available) {
-        ServerCommProcess_HandleAck(wifi_init_stages, &wifi_stage_idx, &wifi_init_done, (char*)recv_buffer, "WIFI");
+//     // 处理接收ACK，调用时机由接收数据事件触发
+//     /*
+//     if (recv_data_available) {
+//         ServerCommProcess_HandleAck(wifi_init_stages, &wifi_stage_idx, &wifi_init_done, (char*)recv_buffer, "WIFI");
+//     }
+//     */
+//     // 初始化完成后执行周期性发送
+//     Wifi_PeriodicSendHandler(ESP32_COMM_TYPE_WIFI);
+// }
+
+// ============================== 初始化阶段顺序控制 ==============================
+
+// 阶段掩码定义（启用的阶段）
+typedef enum {
+    INIT_STAGE_DEVICE_TREE   = (1 << 0),
+    INIT_STAGE_PROP_TREE     = (1 << 1),
+    INIT_STAGE_OFFLINE_TREE  = (1 << 2),
+    INIT_STAGE_TIME_SYNC     = (1 << 3),
+    INIT_STAGE_HEARTBEAT     = (1 << 4),
+
+    INIT_STAGE_ALL           = INIT_STAGE_DEVICE_TREE | INIT_STAGE_PROP_TREE | INIT_STAGE_OFFLINE_TREE | INIT_STAGE_TIME_SYNC | INIT_STAGE_HEARTBEAT,
+} InitStageMask_t;
+
+// 阶段索引（顺序）
+typedef enum {
+    INIT_INDEX_DEVICE_TREE = 0,
+    INIT_INDEX_PROP_TREE,
+    INIT_INDEX_OFFLINE_TREE,
+    INIT_INDEX_TIME_SYNC,
+    INIT_INDEX_HEARTBEAT,
+    INIT_INDEX_COUNT
+} InitStageIndex_t;
+
+// 初始化控制结构
+typedef struct {
+    uint8_t mask;          // 启用的阶段掩码
+    uint8_t finished_mask; // 已完成的阶段掩码
+    uint8_t current_stage; // 当前阶段索引
+    uint8_t completed;     // 当前阶段是否已完成（修改：只表示当前阶段完成）
+
+    uint8_t trigger_mask;  // 触发重新发送的阶段掩码（可动态置位触发）
+} InitPhaseControl_t;
+
+// 定时发送控制结构体
+typedef struct {
+    uint32_t last_realtime_tick;     // 上次发送实时数据的时间戳（单位ms）
+    uint32_t last_history_tick;      // 上次发送历史数据的时间戳（单位ms）
+    uint32_t realtime_interval_ms;   // 实时数据发送间隔
+    uint32_t history_interval_ms;    // 历史数据发送间隔
+} PeriodicSendControl_t;
+
+// 初始化函数
+static inline void InitPhaseControl_Init(InitPhaseControl_t *ctrl, uint8_t mask) {
+    ctrl->mask = mask;
+    ctrl->finished_mask = 0;
+    ctrl->current_stage = 0;
+    ctrl->completed = 0;      // 修改：当前阶段未完成
+    ctrl->trigger_mask = 0;
+}
+
+// 判断当前阶段是否需要发送
+static inline int InitPhaseControl_NeedSend(InitPhaseControl_t *ctrl) {
+    uint8_t stage_bit = (1 << ctrl->current_stage);
+    // 当前阶段启用且未完成，或者触发了重发
+    if ((ctrl->mask & stage_bit) && (!(ctrl->finished_mask & stage_bit) || (ctrl->trigger_mask & stage_bit))) {
+        return 1;
     }
-    */
-    // 初始化完成后执行周期性发送
-    Wifi_PeriodicSendHandler(ESP32_COMM_TYPE_WIFI);
+    return 0;
+}
+
+// 收到当前阶段成功响应，**不自动推进到下一阶段**，只标记完成并清除触发标志
+static inline void InitPhaseControl_OnResponse(InitPhaseControl_t *ctrl) {
+    uint8_t stage_bit = (1 << ctrl->current_stage);
+    ctrl->finished_mask |= stage_bit;       // 标记当前阶段完成
+    ctrl->trigger_mask &= ~stage_bit;       // 清除触发标志
+    ctrl->completed = 1;                     // 当前阶段完成，等待外部触发下一阶段
+}
+
+// 外部调用，设置触发标志（某阶段需要重新发送），切换当前阶段索引
+static inline void InitPhaseControl_TriggerStage(InitPhaseControl_t *ctrl, InitStageMask_t stage) {
+    if ((ctrl->mask & stage)) {
+        ctrl->finished_mask &= ~stage;      // 标记该阶段为未完成
+        ctrl->trigger_mask |= stage;        // 设置触发标志
+        // 切换到触发阶段索引
+        for (int i = 0; i < INIT_INDEX_COUNT; i++) {
+            if ((1 << i) == stage) {
+                ctrl->current_stage = i;
+                ctrl->completed = 0;         // 当前阶段未完成
+                break;
+            }
+        }
+    }
+}
+
+// 初始化周期发送控制
+static inline void PeriodicSendControl_Init(PeriodicSendControl_t *ctrl, uint32_t rt_interval_ms, uint32_t hist_interval_ms) {
+    ctrl->last_realtime_tick = 0;
+    ctrl->last_history_tick = 0;
+    ctrl->realtime_interval_ms = rt_interval_ms;
+    ctrl->history_interval_ms = hist_interval_ms;
+}
+
+// 获取系统当前时间（单位ms）外部实现
+uint32_t GetTickMs(void);
+
+// 发送接口声明（需外部实现）
+void SendDeviceTree(void);
+void SendPropTree(void);
+void SendOfflineTree(void);
+void SendTimeSyncCommand(void);
+void SendHeartbeatCommand(void);
+void SendRealtimeData(void);
+void SendHistoryData(void);
+
+// 周期发送检查和执行
+static inline void PeriodicSendControl_CheckAndSend(PeriodicSendControl_t *ctrl) {
+    uint32_t now = GetTickMs();
+    if (now - ctrl->last_realtime_tick >= ctrl->realtime_interval_ms) {
+        SendRealtimeData();
+        ctrl->last_realtime_tick = now;
+    }
+    if (now - ctrl->last_history_tick >= ctrl->history_interval_ms) {
+        SendHistoryData();
+        ctrl->last_history_tick = now;
+    }
+}
+
+// 主任务循环示例（结合阶段顺序和周期发送）
+void WifiTaskLoop(void) {
+    static InitPhaseControl_t init_ctrl;
+    static PeriodicSendControl_t periodic_ctrl;
+    static uint8_t initialized = 0;
+
+    if (!initialized) {
+        InitPhaseControl_Init(&init_ctrl, INIT_STAGE_ALL);
+        PeriodicSendControl_Init(&periodic_ctrl, 20000, 10000); // 20s实时数据, 10s历史数据
+        initialized = 1;
+    }
+
+    // 初始化阶段处理
+    if (!init_ctrl.completed) {
+        if (InitPhaseControl_NeedSend(&init_ctrl)) {
+            switch (init_ctrl.current_stage) {
+                case INIT_INDEX_DEVICE_TREE:   SendDeviceTree(); break;
+                case INIT_INDEX_PROP_TREE:     SendPropTree(); break;
+                case INIT_INDEX_OFFLINE_TREE:  SendOfflineTree(); break;
+                case INIT_INDEX_TIME_SYNC:     SendTimeSyncCommand(); break;
+                case INIT_INDEX_HEARTBEAT:     SendHeartbeatCommand(); break;
+                default: break;
+            }
+        }
+    } else {
+        // 所有初始化阶段完成后，执行周期性数据发送
+        PeriodicSendControl_CheckAndSend(&periodic_ctrl);
+    }
+}
+
+
+ESP32Status_t esp32_status = {0};
+/**
+ * @brief 检查ESP32是否准备就绪
+ * @param status ESP32状态结构体指针
+ * @param max_retries 最大重试次数
+ * @param delay_ms 每次重试间隔（毫秒）
+ * @return 0表示就绪，-1表示未就绪
+ */
+int ESP32_CheckReady(ESP32Status_t *status, int max_retries, uint32_t delay_ms)
+{
+    while (!status->ready && status->ready_retry_count < max_retries) {
+        ESP32_Hw_Reset(&g_esp32_dev);
+        Log_Message(LOG_LEVEL_TEST, "[WiFi/BLE] ESP32 Reset, waiting for boot up (attempt %u/%u)...",
+                    status->ready_retry_count + 1, max_retries);
+        g_rtos_ops->Delay(300);
+
+        AT_Cmd_Config_t at_test_cmd = {"AT\r\n", "OK", 2000, 2, "ESP32 Ready Test"};
+        if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, &at_test_cmd, ESP32_COMM_TYPE_WIFI) == AT_OK) {
+            Log_Message(LOG_LEVEL_TEST, "[WiFi/BLE] ESP32 is ready.");
+            status->ready = 1;
+        } else {
+            Log_Message(LOG_LEVEL_WARNING, "[WiFi/BLE] ESP32 not ready. Retrying...");
+            status->ready_retry_count++;
+            if (status->ready_retry_count < max_retries) {
+                g_rtos_ops->Delay(delay_ms);
+            }
+        }
+    }
+
+    if (!status->ready) {
+        Log_Message(LOG_LEVEL_ERROR, "[WiFi/BLE] ESP32 failed to become ready after %u attempts.", max_retries);
+        return -1;
+    }
+    return 0;
+}
+
+/**
+ * @brief 重置ESP32并清除状态
+ * @param status ESP32状态结构体指针
+ */
+void ESP32_ResetAndClearStatus(ESP32Status_t *status)
+{
+    ESP32_Hw_Reset(&g_esp32_dev);
+    Log_Message(LOG_LEVEL_INFO, "[ESP32] Hardware reset performed, clearing status.");
+    status->ready = 0;
+    status->ready_retry_count = 0;
+    status->wifi_init_retry_count = 0;
+    status->ble_init_retry_count = 0;
+    status->tcp_init_retry_count = 0;
+    app_init_flags.all = 0; // 清除应用初始化标志
+    wifi_stage_idx = 0; // 重置阶段索引
+    g_rtos_ops->Delay(5000);
 }
 
 /**
@@ -238,45 +482,22 @@ void WifiTaskLoop(void)
  */
 void App_WifiBLETask(void *pvParameters)
 {
-    (void)pvParameters; // 避免编译器警告
+    (void)pvParameters;
     Log_Message(LOG_LEVEL_TEST, "[WiFi/BLE Task] Started.");
 
-    uint8_t esp32_ready = 0;
-    uint8_t ready_retry_count = 0;
     const uint8_t max_ready_retries = 5;
+    const uint8_t max_app_init_retries = 3;
 
-    // --- 1. ESP32 模块就绪检查 ---
-    while (!esp32_ready && ready_retry_count < max_ready_retries) {
-        ESP32_Hw_Reset(&g_esp32_dev); // 硬件复位ESP32
-        Log_Message(LOG_LEVEL_TEST, "[WiFi/BLE] ESP32 Reset, waiting for boot up (attempt %u/%u)...", ready_retry_count + 1, max_ready_retries);
-        g_rtos_ops->Delay(300); // 等待ESP32启动
-
-        // 发送基础AT指令测试模块是否响应
-        AT_Cmd_Config_t at_test_cmd = {"AT\r\n", "OK", 2000, 2, "ESP32 Ready Test"};
-        if (g_esp32_at_ops.SendATCommand(&g_esp32_dev, &at_test_cmd, ESP32_COMM_TYPE_WIFI) == AT_OK) {
-            Log_Message(LOG_LEVEL_TEST, "[WiFi/BLE] ESP32 is ready.");
-            esp32_ready = 1;
-        } else {
-            Log_Message(LOG_LEVEL_WARNING, "[WiFi/BLE] ESP32 not ready. Retrying...");
-            ready_retry_count++;
-            if (ready_retry_count < max_ready_retries) g_rtos_ops->Delay(2000); // 重试前额外延时
-        }
-    }
-
-    if (!esp32_ready) {
-        Log_Message(LOG_LEVEL_ERROR, "[WiFi/BLE] ESP32 failed to become ready after %u attempts. Suspending task.", max_ready_retries);
-        if (g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;); // 挂起任务
+    if (ESP32_CheckReady(&esp32_status, max_ready_retries, 2000) != 0) {
+        Log_Message(LOG_LEVEL_ERROR, "[WiFi/BLE] ESP32 failed to become ready after max retries. Suspending task.");
+        if (g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL);
+        else for(;;);
         return;
     }
 
-
-    uint8_t app_init_retry_count = 0;
-    uint8_t tcp_init_retry_count = 0;
-    const uint8_t max_app_init_retries = 3;
-
     while (1) {
         // --- 2. WiFi 应用层初始化 ---
-        if (!wifi_app_initialized) {
+        if (!app_init_flags.bits.wifi_app_init) {
             Log_Message(LOG_LEVEL_TEST, "[WiFi] Attempting application layer initialization...");
             AT_Cmd_Config_t init_cmds[] = {
                 {"ATE1\r\n", "OK", 2000, 2, "Echo Test",NULL},
@@ -298,25 +519,23 @@ void App_WifiBLETask(void *pvParameters)
             }
 
             if (init_success) {
-                wifi_app_initialized = 1;
-                app_init_retry_count = 0;
+                app_init_flags.bits.wifi_app_init = 1;
+                esp32_status.wifi_init_retry_count = 0;
                 Log_Message(LOG_LEVEL_INFO, "[WiFi] Application Layer Initialization successful.");
             } else {
-                app_init_retry_count++;
-                Log_Message(LOG_LEVEL_WARNING, "[WiFi] App Layer Init failed, retry %u/%u.", app_init_retry_count, max_app_init_retries);
-                if (app_init_retry_count >= max_app_init_retries) {
+                esp32_status.wifi_init_retry_count++;
+                Log_Message(LOG_LEVEL_WARNING, "[WiFi] App Layer Init failed, retry %u/%u.", esp32_status.wifi_init_retry_count, max_app_init_retries);
+                if (esp32_status.wifi_init_retry_count >= max_app_init_retries) {
                     Log_Message(LOG_LEVEL_ERROR, "[WiFi] Max App Layer Init retries. Triggering ESP32 full reset cycle.");
-                    esp32_ready = 0; // 标记ESP32需要重新检查就绪状态
-                    ready_retry_count = 0; // 重置ESP32就绪检查计数
-                    wifi_app_initialized = 0; // 确保下次循环重新初始化应用层
-                    g_rtos_ops->Delay(5000); // 长延时后从头开始
-                    continue; // 返回到外层while，重新检查esp32_ready
+                    ESP32_ResetAndClearStatus(&esp32_status);
+                    app_init_flags.bits.wifi_app_init = 0; // 确保下次循环重新初始化应用层
+                    continue; // 重置状态并重新开始
                 }
                 g_rtos_ops->Delay(3000); // 应用初始化失败后的短延时重试
             }
         }
         // --- 3. BLE 应用层初始化 ---
-        if (!ble_app_initialized) {
+        if (!app_init_flags.bits.ble_app_init) {
              Log_Message(LOG_LEVEL_TEST, "[BLE] Attempting application layer initialization...");
              AT_Cmd_Config_t ble_init_cmds[] = {
                 {"AT+BLEINIT=2\r\n", "OK", 2000, 2, "Initialize BLE Peripheral"}, // 示例指令
@@ -333,7 +552,7 @@ void App_WifiBLETask(void *pvParameters)
             }
 
             if (ble_init_success) {
-                ble_app_initialized = 1;
+                app_init_flags.bits.ble_app_init = 1;
                 Log_Message(LOG_LEVEL_TEST, "[BLE] Application Layer Initialization successful.");
             } else {
                 Log_Message(LOG_LEVEL_WARNING, "[BLE] App Layer Init failed. Retrying in next cycle.");
@@ -341,7 +560,7 @@ void App_WifiBLETask(void *pvParameters)
             }
         }
         // --- 4. TCP 应用层初始化 ---
-        if (!tcp_app_initialized) {
+        if (!app_init_flags.bits.tcp_app_init) {
             Log_Message(LOG_LEVEL_TEST, "[WiFi] TCP Application Layer not initialized yet. Initializing...");
             // 这里可以添加TCP应用层初始化逻辑，例如连接到服务器等
             static char cmd_str[64];
@@ -361,17 +580,17 @@ void App_WifiBLETask(void *pvParameters)
             }
 
             if (tcp_init_success) {
-                tcp_app_initialized = 1;
-                tcp_init_retry_count = 0;
+                app_init_flags.bits.tcp_app_init = 1;
+                esp32_status.tcp_init_retry_count = 0;
                 Log_Message(LOG_LEVEL_TEST, "[WiFi] TCP Application Layer Initialization successful.");
             } else {
-                tcp_init_retry_count++;
-                Log_Message(LOG_LEVEL_WARNING, "[WiFi] TCP App Layer Init failed, retry %u/%u.", tcp_init_retry_count, max_app_init_retries);
-                if (tcp_init_retry_count >= max_app_init_retries) {
+                esp32_status.tcp_init_retry_count++;
+                Log_Message(LOG_LEVEL_WARNING, "[WiFi] TCP App Layer Init failed, retry %u/%u.", esp32_status.tcp_init_retry_count, max_app_init_retries);
+                if (esp32_status.tcp_init_retry_count >= max_app_init_retries) {
                     Log_Message(LOG_LEVEL_ERROR, "[WiFi] Max TCP App Layer Init retries. Triggering ESP32 full reset cycle.");
-                    tcp_app_initialized = 0; // 确保下次循环重新初始化应用层
+                    app_init_flags.bits.tcp_app_init = 0; // 确保下次循环重新初始化应用层
                     g_rtos_ops->Delay(5000); // 长延时后从头开始
-                    continue; // 返回到外层while，重新检查esp32_ready
+                    continue; // 重置状态并重新开始
                 }
                 g_rtos_ops->Delay(3000); // 应用初始化失败后的短延时重试
             }
@@ -379,7 +598,7 @@ void App_WifiBLETask(void *pvParameters)
         
         WifiTaskLoop(); 
         // --- 5. WiFi/BLE 定期功能测试 ---
-        if (wifi_app_initialized && tcp_app_initialized) {
+        if (app_init_flags.bits.wifi_app_init && app_init_flags.bits.tcp_app_init) {
             // char cmd_str[64];
             // snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", TCP_SERVER_IP, TCP_PORT);
             // AT_Cmd_Config_t tcp_connect_cmd = {cmd_str, "OK", 10000, 1, "Connect to TCP Server"};
@@ -416,7 +635,7 @@ void App_WifiBLETask(void *pvParameters)
             // }
         }
 
-        if (ble_app_initialized) {
+        if (app_init_flags.bits.ble_app_init) {
             uint8_t ble_tx_data[] = "Hello via BLE from STM32!";
             uint8_t ble_rx_buffer[TCP_BUFFER_SIZE];
             uint16_t ble_rx_len = sizeof(ble_rx_buffer);

@@ -1,3 +1,13 @@
+/*
+ * @Author: 23Elapse userszy@163.com
+ * @Date: 2025-07-22 23:42:51
+ * @LastEditors: 23Elapse userszy@163.com
+ * @LastEditTime: 2025-07-23 20:56:52
+ * @FilePath: \Demo_Std_F407\Application\tsk_wifi.h
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved. 
+ */
 #ifndef __TSK_WIFI_H
 #define __TSK_WIFI_H
 #include "pch.h"
@@ -6,19 +16,7 @@ typedef enum {
     COMM_BLE
 } Comm_Channel_t;
 
-void Handle_Comm_Channel(Comm_Channel_t channel, uint32_t interval_ms);
-#include <stdint.h>
-#include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-//typedef enum {
-//    ESP32_COMM_TYPE_WIFI = 0,
-//    ESP32_COMM_TYPE_BLE  = 1,
-//    // 可扩展其他通道
-//} ESP32_CommType_t;
 
 typedef enum {
     INIT_STAGE_DEVICE_TREE = 0,   // 设备树
@@ -31,6 +29,20 @@ typedef struct {
     uint8_t  stage_index;      // 阶段索引，用于准备发送数据
     const char *ack_keyword;   // 接收时匹配的ACK关键字
 } InitStageDynamic_t;
+
+typedef struct {
+    uint8_t ready;                // ESP32是否就绪
+    uint8_t ready_retry_count;    // 就绪检测重试次数
+    uint8_t wifi_init_retry_count;
+    uint8_t ble_init_retry_count;
+    uint8_t tcp_init_retry_count;
+} ESP32Status_t;
+
+
+/**
+ * @brief 通信通道类型定义
+ */
+void Handle_Comm_Channel(Comm_Channel_t channel, uint32_t interval_ms);
 
 /**
  * @brief 多阶段动态发送流程处理，定时调用发送当前阶段数据。
