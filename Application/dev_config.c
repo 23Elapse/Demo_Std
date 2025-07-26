@@ -23,7 +23,7 @@
 Serial_Device_t g_uart_dev = {
     .instance = USART1, .tx_port = GPIOA, .tx_pin = GPIO_Pin_9,
     .rx_port = GPIOA, .rx_pin = GPIO_Pin_10, .de_port = NULL, .de_pin = 0,
-    .baudrate = 115200, .af = GPIO_AF_USART1, .irqn = USART1_IRQn,
+    .baudrate = 921600, .af = GPIO_AF_USART1, .irqn = USART1_IRQn,
     .mode = UART_MODE
 };
 

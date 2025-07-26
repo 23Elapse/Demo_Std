@@ -146,7 +146,8 @@ void DebugMon_Handler(void)
   * @retval None
   */
 extern void xPortSysTickHandler(void);
-//systick�жϷ�����
+//systick 处理函数
+// 这个函数会在每次SysTick中断发生时被调用
 void SysTick_Handler(void)
 {
     #if (INCLUDE_xTaskGetSchedulerState  == 1 )

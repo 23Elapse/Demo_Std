@@ -2,8 +2,8 @@
  * @Author: Elapse userszy@163.com
  * @Date: 2024-10-26 15:38:11
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-07-22 10:17:15
- * @FilePath: \Demo_Std-main\User\main.c
+ * @LastEditTime: 2025-07-26 16:47:05
+ * @FilePath: \Demo_Std_F407\User\main.c
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
 #include "pch.h"
@@ -47,15 +47,15 @@ static void BSP_Init(void)
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 
     // 2. 配置系统时钟
-    SystemClock_Config(336, 8, 2, 7); // 设置时钟为180Mhz
-//    SystemClock_Config(360, 25, 2, 8); // 设置时钟为180Mhz
+    if (SystemClock_Config(8, 336, 2, 7) != 0)
+    {
+        // 配置失败，做错误处理
+        while(1);
+    }
+//    NVIC_SetPriority(SysTick_IRQn, configKERNEL_INTERRUPT_PRIORITY);
+    SystemCoreClockUpdate();
 
-//    SysTick_Config(SystemCoreClock / 1000); // 配置SysTick为1ms中断
-//    NVIC_SetPriority (SysTick_IRQn, 0); /* set Priority for Systick Interrupt */
-
-    // 3. 初始化延时函数
-    delay_init(180);
-
+    delay_init(); // 初始化延时函数
     // 其他非常基础的硬件初始化，如LED、KEY等可以保留
     led_init();
     key_init();

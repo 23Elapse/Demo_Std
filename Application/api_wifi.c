@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:50:17
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-07-21 23:48:01
- * @FilePath: \Demo\Application\api_wifi.c
+ * @LastEditTime: 2025-07-26 17:56:09
+ * @FilePath: \Demo_Std_F407\Application\api_wifi.c
  * @Description: ESP32 WiFi 和 BLE 模块统一驱动实现 (Refactored)
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -54,7 +54,7 @@ void ESP32_Hw_Init(ESP32_Shared_Device_t *dev)
     GPIO_SetBits(dev->reset_port, dev->reset_pin);
     Log_Message(LOG_LEVEL_INFO, "[ESP32 Hw] Reset pin initialized.");
 }
-
+    
 /**
  * @brief ESP32硬件复位
  * @param dev 指向ESP32共享设备实例
@@ -65,11 +65,31 @@ void ESP32_Hw_Reset(ESP32_Shared_Device_t *dev)
         Log_Message(LOG_LEVEL_ERROR, "[ESP32 Hw] Reset: Invalid device or reset port.");
         return;
     }
+
+    // Step 1: 禁用串口通信
+    __disable_irq();  // 可选：防止串口中断被打断
+    USART_ITConfig(USART6, USART_IT_RXNE, DISABLE);
+    USART_Cmd(USART6, DISABLE);
+    __enable_irq();   // 可选
+
     Log_Message(LOG_LEVEL_INFO, "[ESP32 Hw] Performing hardware reset...");
-    GPIO_ResetBits(dev->reset_port, dev->reset_pin); // 拉低复位引脚
-    delay_ms(100);                                  // 保持低电平一段时间
-    GPIO_SetBits(dev->reset_port, dev->reset_pin);  // 拉高复位引脚
-    delay_ms(500);                                  // 等待ESP32启动
+
+    // Step 2: 执行复位
+    GPIO_ResetBits(dev->reset_port, dev->reset_pin);
+    g_rtos_ops->Delay(pdMS_TO_TICKS(100));
+    GPIO_SetBits(dev->reset_port, dev->reset_pin);
+    g_rtos_ops->Delay(pdMS_TO_TICKS(500)); // 可加大到 1000ms 更保险
+
+    // Step 3: 清空串口缓冲区（可选）
+    volatile uint8_t dummy;
+    while (USART_GetFlagStatus(USART6, USART_FLAG_RXNE)) {
+        dummy = USART_ReceiveData(USART6);  // 清接收数据
+    }
+
+    // Step 4: 恢复串口
+    USART_Cmd(USART6, ENABLE);
+    USART_ITConfig(USART6, USART_IT_RXNE, ENABLE);
+
     Log_Message(LOG_LEVEL_INFO, "[ESP32 Hw] Hardware reset completed.");
 }
 
@@ -166,6 +186,48 @@ void set_ssid_password_callback(const char *response) {
         Log_Message(LOG_LEVEL_INFO, "[WiFi] SSID and Password set successfully.");
     } else {
         Log_Message(LOG_LEVEL_WARNING, "[WiFi] Failed to set SSID and Password: %s", response);
+    }
+}
+
+void get_tcp_server_status_callback(const char *response) {
+    // 解析 "+CIPSTATUS:<link ID>,<\"type\">,<\"remote IP\">,<remote port>,<local port>,<tetype>"
+    // 以及 "STATUS:<stat>"
+    // 例: STATUS:3\r\n+CIPSTATUS:0,"TCP","192.168.1.100",8080,12345,0\r\nOK
+
+    // 1. 解析 STATUS:<stat>
+    const char *status_prefix = "STATUS:";
+    const char *status_pos = strstr(response, status_prefix);
+    if (status_pos) {
+        int stat = -1;
+        sscanf(status_pos + strlen(status_prefix), "%d", &stat);
+        g_esp32_info.tcp_status = stat;
+        Log_Message(LOG_LEVEL_INFO, "[WiFi] Station status: %d", stat);
+    }
+
+    // 2. 解析 +CIPSTATUS: 行
+    const char *cipstatus_prefix = "+CIPSTATUS:";
+    const char *cip_pos = strstr(response, cipstatus_prefix);
+    if (cip_pos) {
+        int link_id = -1, remote_port = 0, local_port = 0, tetype = -1;
+        char type[8] = {0};
+        char remote_ip[32] = {0};
+        // 格式: +CIPSTATUS:<link ID>,"<type>","<remote IP>",<remote port>,<local port>,<tetype>
+        int n = sscanf(cip_pos, "+CIPSTATUS:%d,\"%7[^\"]\",\"%31[^\"]\",%d,%d,%d",
+                       &link_id, type, remote_ip, &remote_port, &local_port, &tetype);
+        if (n == 6) {
+            g_esp32_info.link_id = link_id;
+            strncpy(g_esp32_info.conn_type, type, sizeof(g_esp32_info.conn_type) - 1);
+            g_esp32_info.conn_type[sizeof(g_esp32_info.conn_type) - 1] = '\0';
+            strncpy(g_esp32_info.remote_ip, remote_ip, sizeof(g_esp32_info.remote_ip) - 1);
+            g_esp32_info.remote_ip[sizeof(g_esp32_info.remote_ip) - 1] = '\0';
+            g_esp32_info.remote_port = remote_port;
+            g_esp32_info.local_port = local_port;
+            g_esp32_info.tetype = tetype;
+            Log_Message(LOG_LEVEL_TEST, "[WiFi] TCP Status: link_id=%d, type=%s, remote_ip=%s, remote_port=%d, local_port=%d, tetype=%d",
+                        link_id, type, remote_ip, remote_port, local_port, tetype);
+        } else {
+            Log_Message(LOG_LEVEL_WARNING, "[WiFi] Failed to parse +CIPSTATUS line: %s", cip_pos);
+        }
     }
 }
 

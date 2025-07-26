@@ -28,7 +28,7 @@
  * FreeRTOS会自动处理SysTick的配置，因此在RTOS环境下此函数可以为空或不被调用。
  * @param SYSCLK 系统主时钟频率 (MHz)
  */
-void delay_init(uint32_t SYSCLK);
+void delay_init(void);
 
 /**
  * @brief 微秒级延时

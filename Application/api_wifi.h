@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:52:45
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-07-21 21:06:36
- * @FilePath: \Demo\Application\api_wifi.h
+ * @LastEditTime: 2025-07-26 10:54:46
+ * @FilePath: \Demo_Std_F407\Application\api_wifi.h
  * @Description: ESP32 WiFi 和 BLE 模块统一驱动头文件 (Refactored)
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -20,13 +20,10 @@
  */
 #define WIFI_SSID       "104"
 #define WIFI_PASSWORD   "ABC104104"
-#define TCP_SERVER_IP   "192.168.2.100"
-#define TCP_PORT        "5000"
+#define TCP_SERVER_IP   "192.168.2.121"
+#define TCP_PORT        "8080"
 #define UART_TIMEOUT    5000 // 通用串口操作超时
 #define TCP_BUFFER_SIZE 256 // TCP数据缓冲区大小
-
-#define AKT_DEV_ID      "14456411462837499097" // AKT设备ID
-#define AKT_DEV_SECRET  "12345678"  // AKT设备密钥
 
 #define MAX_FRAME_SIZE     512  // 单帧最大数据长度
 #define CRC16_LEN          4    // CRC16以ASCII十六进制表示，长度固定4字节
@@ -75,11 +72,21 @@ typedef struct {
  * 保存设备的版本、IP地址、MAC地址、SSID、密码等信息
  */
 typedef struct {
+    // 基本信息
     char version[32];      // ESP32固件版本号
-    char ip_addr[16];      // IP地址 (xxx.xxx.xxx.xxx)
-    char mac_addr[18];     // MAC地址 (XX:XX:XX:XX:XX:XX)
     char ssid[32];         // WiFi SSID
     char password[64];     // WiFi密码
+    char ip_addr[16];      // IP地址 (xxx.xxx.xxx.xxx)
+    char mac_addr[18];     // MAC地址 (XX:XX:XX:XX:XX:XX)
+
+    // TCP连接信息
+    char remote_ip[16];    // 远程IP地址
+    char conn_type[8];     // 连接类型 (例如 "TCP", "UDP")
+    uint16_t remote_port;  // 远程端口号
+    uint16_t local_port;   // 本地端口号
+    uint8_t link_id;       // TCP连接ID
+    uint8_t tetype;        // 连接类型 (0: TCP, 1: UDP)
+    int8_t tcp_status;     // TCP连接状态标志
 } ESP32_Device_Info_t;
 
 // 声明全局唯一的ESP32设备信息实例
@@ -142,6 +149,12 @@ void get_version_callback(const char *response);
  * @param response 响应字符串
  */
 void set_ssid_password_callback(const char *response);
+
+/**
+ * @brief 回调函数：解析AT+CIPSTATUS响应并获取TCP连接状态
+ * @param response 响应字符串
+ */
+void get_tcp_server_status_callback(const char *response);
 
 /**
  * @brief ESP32 AT 命令操作接口

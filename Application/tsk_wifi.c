@@ -83,43 +83,44 @@ static inline void PeriodicSendControl_Init(PeriodicSendControl_t *ctrl, uint32_
 void SendDeviceTree(void)
 {
     // 发送设备树数据的具体实现
-    Log_Message(LOG_LEVEL_INFO, "[WIFI] Sending device tree data.");
+    Log_Message(LOG_LEVEL_TEST, "[WIFI] Sending device tree data.");
 }
 void SendPropTree(void)
 {
     // 发送属性树数据的具体实现
-    Log_Message(LOG_LEVEL_INFO, "[WIFI] Sending property tree data.");
+    Log_Message(LOG_LEVEL_TEST, "[WIFI] Sending property tree data.");
 }
 void SendOfflineTree(void)
 {
     // 发送离线树数据的具体实现
-    Log_Message(LOG_LEVEL_INFO, "[WIFI] Sending offline tree data.");
+    Log_Message(LOG_LEVEL_TEST, "[WIFI] Sending offline tree data.");
 }
 void SendTimeSyncCommand(void)
 {
     // 发送时间同步命令的具体实现
-    Log_Message(LOG_LEVEL_INFO, "[WIFI] Sending time sync command.");
+    Log_Message(LOG_LEVEL_TEST, "[WIFI] Sending time sync command.");
 }
 void SendHeartbeatCommand(void)
 {
     // 发送心跳命令的具体实现
-    Log_Message(LOG_LEVEL_INFO, "[WIFI] Sending heartbeat command.");
+    Log_Message(LOG_LEVEL_TEST, "[WIFI] Sending heartbeat command.");
 }
 void SendRealtimeData(void)
 {
     // 发送实时数据的具体实现
-    Log_Message(LOG_LEVEL_INFO, "[WIFI] Sending realtime data.");
+    Log_Message(LOG_LEVEL_TEST, "[WIFI] Sending realtime data.");
 }
 void SendHistoryData(void)
 {
     // 发送历史数据的具体实现
-    Log_Message(LOG_LEVEL_INFO, "[WIFI] Sending history data.");
+    Log_Message(LOG_LEVEL_TEST, "[WIFI] Sending history data.");
 }
 
 // 模拟接收成功响应（这里直接返回true，模拟成功）
 int ReceiveStageResponse(uint8_t stage)
 {
-    printf("Received response for stage %d\n", stage);
+    // 模拟接收响应的逻辑
+    Log_Message(LOG_LEVEL_TEST, "[WIFI] Simulated response received for stage %d", stage);
     return 1; // 模拟总是成功
 }
 // 周期发送检查和执行
@@ -141,7 +142,7 @@ static inline void PeriodicSendControl_CheckAndSend(PeriodicSendControl_t *ctrl)
 // 其他任务调用此函数触发某阶段重发
 void ExternalTrigger_ReSendStage(InitStageMask_t stage)
 {
-    printf("[External Task] Trigger resend stage mask: 0x%02X\n", stage);
+    Log_Message(LOG_LEVEL_TEST, "[External Task] Trigger resend stage mask: 0x%02X", stage);
     InitPhaseControl_TriggerStage(&init_ctrl, stage);
 }
 
@@ -189,6 +190,44 @@ void WifiTaskLoop(void)
     }
 }
 
+#define MAX_TASK_NUM 16  // 根据你的系统任务数量调整
+
+void PrintTaskInfo(void)
+{
+    TaskStatus_t taskStatusArray[MAX_TASK_NUM];
+    UBaseType_t taskCount;
+    uint32_t totalRunTime;
+
+    taskCount = uxTaskGetSystemState(taskStatusArray, MAX_TASK_NUM, &totalRunTime);
+
+    Log_Message(LOG_LEVEL_TEST, "\r\n[TaskInfo] Task Count: %lu", (unsigned long)taskCount);
+    Log_Message(LOG_LEVEL_TEST, "Name          State   Prio   Stack  Num");
+    Log_Message(LOG_LEVEL_TEST, "----------------------------------------");
+
+    for (UBaseType_t i = 0; i < taskCount; i++)
+    {
+        char stateChar;
+        switch (taskStatusArray[i].eCurrentState)
+        {
+            case eRunning:   stateChar = 'R'; break;
+            case eReady:     stateChar = 'Y'; break;
+            case eBlocked:   stateChar = 'B'; break;
+            case eSuspended: stateChar = 'S'; break;
+            case eDeleted:   stateChar = 'D'; break;
+            default:         stateChar = '?'; break;
+        }
+
+        Log_Message(LOG_LEVEL_TEST, "%-13s %c       %2lu     %4u   %2lu",
+                    taskStatusArray[i].pcTaskName,
+                    stateChar,
+                    (unsigned long)taskStatusArray[i].uxCurrentPriority,
+                    (unsigned int)taskStatusArray[i].usStackHighWaterMark,
+                    (unsigned long)taskStatusArray[i].xTaskNumber);
+    }
+
+    Log_Message(LOG_LEVEL_TEST, "----------------------------------------");
+}
+
 /**
  * @brief 检查ESP32是否准备就绪
  * @param status ESP32状态结构体指针
@@ -200,6 +239,7 @@ int ESP32_CheckReady(ESP32Status_t *status, int max_retries, uint32_t delay_ms)
 {
     while (!status->ready && status->ready_retry_count < max_retries)
     {
+        PrintTaskInfo(); // 打印系统任务信息
         ESP32_Hw_Reset(&g_esp32_dev);
         Log_Message(LOG_LEVEL_TEST, "[WiFi/BLE] ESP32 Reset, waiting for boot up (attempt %u/%u)...",
                     status->ready_retry_count + 1, max_retries);
@@ -339,10 +379,11 @@ void wifi_tcp_init(AppInitFlags_t *flags, uint8_t max_retries)
         Log_Message(LOG_LEVEL_TEST, "[WiFi] TCP Application Layer not initialized yet. Initializing...");
         // 这里可以添加TCP应用层初始化逻辑，例如连接到服务器等
         static char cmd_str[64];
-        // snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", TCP_SERVER_IP, TCP_PORT);
-        snprintf(cmd_str, sizeof(cmd_str), "AT+ATKCLDSTA=\"%s\",\"%s\"\r\n", AKT_DEV_ID, AKT_DEV_SECRET);
+        snprintf(cmd_str, sizeof(cmd_str), "AT+CIPSTART=\"TCP\",\"%s\",%s\r\n", TCP_SERVER_IP, TCP_PORT);
         AT_Cmd_Config_t tcp_init_cmds[] = {
-            {cmd_str, "CLOUD CONNECTED", 10000, 1, "Connect to TCP Server", NULL},
+            {cmd_str, "CONNECT", 10000, 1, "Connect to TCP Server", NULL},
+            // {"AT+CIPMODE=0\r\n", "OK", 2000, 2, "Set TCP Mode"},
+            {"AT+CIPSTATUS\r\n", "OK", 2000, 2, "Check TCP Status", get_tcp_server_status_callback},
             {NULL, NULL, 0, 0, NULL, NULL} // 哨兵值
         };
         uint8_t tcp_init_success = 1;
@@ -376,6 +417,8 @@ void wifi_tcp_init(AppInitFlags_t *flags, uint8_t max_retries)
         }
     }
 }
+
+uint8_t test_bit = 0;
 /**
  * @brief WiFi/BLE 统一管理任务
  * @param pvParameters 未使用
@@ -407,6 +450,8 @@ void App_WifiBLETask(void *pvParameters)
         //
         WifiTaskLoop();
         // --- 5. WiFi/BLE 定期功能测试 ---
+        if(test_bit)
+        {
         if (app_init_flags.bits.wifi_app_init && app_init_flags.bits.tcp_app_init)
         {
             {
@@ -457,7 +502,8 @@ void App_WifiBLETask(void *pvParameters)
                 Log_Message(LOG_LEVEL_ERROR, "[BLE] Failed to send BLE data.");
             }
         }
+        }
 
-        g_rtos_ops->Delay(10000); // 主循环延时 (10秒)
+        g_rtos_ops->Delay(10); // 主循环延时 (10毫秒)
     }
 }

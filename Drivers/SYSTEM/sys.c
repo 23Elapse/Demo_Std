@@ -103,82 +103,96 @@ void sys_soft_reset(void)
  * @retval      错误代码: 0, 成功; 1, 错误;
  */
 
-/**
- * @brief 时钟设置函数
- * @param plln: PLL1倍频系数(PLL倍频), 取值范围: 64~432.
- * @param pllm: PLL1预分频系数(进PLL之前的分频), 取值范围: 2~63.
- * @param pllp: PLL1的p分频系数(PLL之后的分频), 分频后作为系统时钟, 取值范围: 2,4,6,8.
- * @param pllq: PLL1的q分频系数(PLL之后的分频), 取值范围: 2~15.
- * @retval 错误代码: 0, 成功; 1, 错误;
- */
-// 确保SystemCoreClock已更新为实际SYSCLK值
 
 extern uint32_t SystemCoreClock;
-uint8_t SystemClock_Config(uint32_t plln, uint32_t pllm, uint32_t pllp, uint32_t pllq)
+
+/**
+ * @brief  配置系统时钟，使用外部晶振 HSE 作为 PLL 时钟源
+ * @param  pllm : PLLM 分频因子，范围 2~63，VCO 输入频率 = HSE / PLLM，必须在1~2MHz之间
+ * @param  plln : PLLN 倍频因子，范围 192~432，VCO 输出频率 = VCO 输入频率 * PLLN，必须在192~432MHz之间
+ * @param  pllp : PLLP 主分频因子，只能是 2、4、6 或 8，系统时钟 = VCO 输出频率 / PLLP，最大180MHz
+ * @param  pllq : PLLQ 分频因子，范围 2~15，用于 USB、SDIO、RNG 时钟，输出时钟 = VCO 输出频率 / PLLQ，必须是48MHz
+ * @retval 0 配置成功
+ *         1 参数错误或 HSE 启动失败
+ */
+uint8_t SystemClock_Config(uint32_t pllm, uint32_t plln, uint32_t pllp, uint32_t pllq)
 {
-  RCC_DeInit();
+    // 重置 RCC 配置为默认状态
+    RCC_DeInit();
 
-  // 使能HSE
-  RCC_HSEConfig(RCC_HSE_ON);
-  if (RCC_WaitForHSEStartUp() != SUCCESS)
-    return 1;
+    // 使能 HSE
+    RCC_HSEConfig(RCC_HSE_ON);
+    if (RCC_WaitForHSEStartUp() != SUCCESS)
+        return 1; // HSE 启动失败
 
-  // 参数有效性检查
-  if ((pllm < 2) || (pllm > 63))
-    return 1; // PLLM范围2~63
-  if ((plln < 192) || (plln > 432))
-    return 1; // PLLN范围192~432
-  if ((pllp != 2) && (pllp != 4) && (pllp != 6) && (pllp != 8))
-    return 1; // PLLP只能取2,4,6,8
-  if ((pllq < 2) || (pllq > 15))
-    return 1; // PLLQ范围2~15
+    // 参数有效性检查
+    if ((pllm < 2) || (pllm > 63))
+        return 1; // PLLM 范围错误
+    if ((plln < 192) || (plln > 432))
+        return 1; // PLLN 范围错误
+    if ((pllp != 2) && (pllp != 4) && (pllp != 6) && (pllp != 8))
+        return 1; // PLLP 非法值
+    if ((pllq < 2) || (pllq > 15))
+        return 1; // PLLQ 范围错误
 
-  // 假设HSE频率为25MHz，计算VCO输入频率
-  uint32_t HSE_Freq = 25000000; // 根据实际硬件调整
-  float VCO_input = (float)HSE_Freq / pllm;
-  if (VCO_input < 1.0f || VCO_input > 2.0f)
-    return 1; // VCO输入需在1~2MHz
+    // 假设 HSE 频率为 8MHz，根据实际晶振修改此值
+    uint32_t HSE_Freq = 8000000;
 
-  // 计算VCO输出频率及系统时钟
-  float VCO_output = VCO_input * plln;
-  if (VCO_output < 192e6f || VCO_output > 432e6f)
-    return 1; // VCO输出需在192~432MHz
-  float SysClock = VCO_output / pllp;
-  if (SysClock > 180e6f)
-    return 1; // 系统时钟不得超过180MHz
+    // 计算 VCO 输入频率，必须在 1~2 MHz
+    float VCO_input = (float)HSE_Freq / pllm;
+    if ((VCO_input < 1e6f) || (VCO_input > 2e6f))
+        return 1;
 
-  // 配置PLL
-  RCC_PLLConfig(RCC_PLLSource_HSE, pllm, plln, pllp, pllq);
-  RCC_PLLCmd(ENABLE);
-  while (RCC_GetFlagStatus(RCC_FLAG_PLLRDY) == RESET)
-    ;
+    // 计算 VCO 输出频率，必须在 192~432 MHz
+    float VCO_output = VCO_input * plln;
+    if ((VCO_output < 192e6f) || (VCO_output > 432e6f))
+        return 1;
 
-  // 设置Flash等待周期（根据SysClock）
-  if (SysClock <= 30e6f)
-    FLASH_SetLatency(FLASH_Latency_0);
-  else if (SysClock <= 60e6f)
-    FLASH_SetLatency(FLASH_Latency_1);
-  else if (SysClock <= 90e6f)
-    FLASH_SetLatency(FLASH_Latency_2);
-  else if (SysClock <= 120e6f)
-    FLASH_SetLatency(FLASH_Latency_3);
-  else if (SysClock <= 150e6f)
-    FLASH_SetLatency(FLASH_Latency_4);
-  else
-    FLASH_SetLatency(FLASH_Latency_5);
-  FLASH_PrefetchBufferCmd(ENABLE);
+    // 计算系统时钟，不能超过 180 MHz（STM32F407 最大主频）
+    float SysClock = VCO_output / pllp;
+    if (SysClock > 180e6f)
+        return 1;
 
-  // 配置总线分频（切换时钟源前设置）
-  RCC_HCLKConfig(RCC_SYSCLK_Div1); // HCLK = SysClock
-  RCC_PCLK1Config(RCC_HCLK_Div4);  // APB1 = HCLK/4 (45MHz @180MHz)
-  RCC_PCLK2Config(RCC_HCLK_Div2);  // APB2 = HCLK/2 (90MHz @180MHz)
+    // 配置电压调节器，提升到最高性能模式 Scale 1，支持168 MHz以上
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, ENABLE);
+    PWR->CR |= PWR_CR_VOS;
 
-  // 切换系统时钟源到PLL
-  RCC_SYSCLKConfig(RCC_SYSCLKSource_PLLCLK);
-  while (RCC_GetSYSCLKSource() != 0x08)
-    ;
-  SystemCoreClockUpdate(); // 更新SystemCoreClock为当前SYSCLK值
-  return 0;
+    // 配置 PLL
+    RCC_PLLConfig(RCC_PLLSource_HSE, pllm, plln, pllp, pllq);
+    RCC_PLLCmd(ENABLE);
+    while (RCC_GetFlagStatus(RCC_FLAG_PLLRDY) == RESET)
+        ;
+
+    // 配置 FLASH 等待周期，确保高速访问
+    if (SysClock <= 30e6f)
+        FLASH_SetLatency(FLASH_Latency_0);
+    else if (SysClock <= 60e6f)
+        FLASH_SetLatency(FLASH_Latency_1);
+    else if (SysClock <= 90e6f)
+        FLASH_SetLatency(FLASH_Latency_2);
+    else if (SysClock <= 120e6f)
+        FLASH_SetLatency(FLASH_Latency_3);
+    else if (SysClock <= 150e6f)
+        FLASH_SetLatency(FLASH_Latency_4);
+    else
+        FLASH_SetLatency(FLASH_Latency_5);
+
+    FLASH_PrefetchBufferCmd(ENABLE);
+
+    // 配置总线时钟分频器，确保外设时钟不超过规格
+    RCC_HCLKConfig(RCC_SYSCLK_Div1);   // AHB = SYSCLK / 1
+    RCC_PCLK1Config(RCC_HCLK_Div4);    // APB1 = AHB / 4, 最大42MHz
+    RCC_PCLK2Config(RCC_HCLK_Div2);    // APB2 = AHB / 2, 最大84MHz
+
+    // 切换系统时钟源到 PLL
+    RCC_SYSCLKConfig(RCC_SYSCLKSource_PLLCLK);
+    while (RCC_GetSYSCLKSource() != 0x08)  // 0x08 表示 PLL 作为系统时钟
+        ;
+
+    // 更新系统核心时钟变量，方便后续使用
+    SystemCoreClockUpdate();
+
+    return 0; // 配置成功
 }
 /*
  * 使用HSE时，设置系统时钟的步骤

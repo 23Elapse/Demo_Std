@@ -31,7 +31,7 @@
  * =====================================================================================
  */
 #define TASK_RS485_POLL_STK_SIZE    256
-#define TASK_RS485_POLL_PRIO        2
+#define TASK_RS485_POLL_PRIO        2    //值越大优先级越高
 
 #define TASK_SERIAL_RX_STK_SIZE     512 // 接收任务栈可能需要大一些，处理协议解析
 #define TASK_SERIAL_RX_PRIO         3
@@ -50,6 +50,9 @@
 
 #define TASK_I2C_STK_SIZE           256
 #define TASK_I2C_PRIO               2
+
+#define TASK_WATCHDOG_STK_SIZE      128
+#define TASK_WATCHDOG_PRIO          1
 
 /*
  * =====================================================================================
@@ -77,6 +80,14 @@ static void App_RTOS_Init(void);
 static void App_Device_Register(void); // 如果使用 Device Manager
 static void App_Driver_Init(void);
 static void App_Tasks_Create(void);
+static void App_RS485_PollTask(void* param);
+static void App_SerialRxTask(void* param);
+static void App_ErrorLogTask(void* param);
+static void App_WifiBLETask(void* param);
+// static void App_CAN_Task(void* param);
+static void App_SPIFlashTask(void* param);
+static void App_I2CTask(void* param);
+static void App_WatchDogTask(void* param);
 
 /*
  * =====================================================================================
@@ -192,6 +203,9 @@ static void App_Tasks_Create(void) {
     // SPI Flash 管理任务
     g_rtos_ops->TaskCreate(App_SPIFlashTask, "SPI_Flash", TASK_SPI_FLASH_STK_SIZE, &g_spi_flash_dev, TASK_SPI_FLASH_PRIO);
 
+    // watch dog task
+    // g_rtos_ops->TaskCreate(App_WatchDogTask, "WatchDog", TASK_WATCHDOG_STK_SIZE, NULL, TASK_WATCHDOG_PRIO);
+
     // I2C 测试任务 (PCF8574)
     // g_rtos_ops->TaskCreate(App_I2CTask, "I2C_Test", TASK_I2C_STK_SIZE, &g_pcf8574_dev, TASK_I2C_PRIO);
 
@@ -205,6 +219,20 @@ static void App_Tasks_Create(void) {
  * =====================================================================================
  */
 
+/** * @brief 看门狗任务 (定期喂狗)
+ * @param pvParameters 指向任务参数 (如果需要，可以传入设备实例或其他数据)
+ */
+
+void App_WatchDogTask(void *pvParameters) {
+    Log_Message(LOG_LEVEL_TEST, "[WatchDog] Task started.");
+    while (1) {
+        // 这里可以添加实际的看门狗逻辑，例如定期喂狗
+        Log_Message(LOG_LEVEL_TEST, "[SysTick] CTRL=0x%08lx LOAD=%lu VAL=%lu", SysTick->CTRL, SysTick->LOAD, SysTick->VAL);    
+
+        Log_Message(LOG_LEVEL_TEST, "[WatchDog] Feeding the watchdog...");
+        g_rtos_ops->Delay(1000); // 每秒喂一次狗
+    }
+}
 /**
  * @brief RS485 轮询发送任务
  * @param pvParameters 指向 Serial_Device_t 实例 (应为 RS485 模式)
