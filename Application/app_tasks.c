@@ -188,8 +188,8 @@ static void App_Tasks_Create(void) {
     // RS485 轮询发送任务 (负责从队列中取出帧并通过g_rs485_serial发送)
     g_rtos_ops->TaskCreate(App_RS485_PollTask, "RS485_Poll", TASK_RS485_POLL_STK_SIZE, &g_rs485_serial, TASK_RS485_POLL_PRIO);
 
-    // 串口接收任务 (处理通用串口数据和RS485协议解析，这里以g_rs485_serial为例)
-    g_rtos_ops->TaskCreate(App_SerialRxTask, "Serial_Rx", TASK_SERIAL_RX_STK_SIZE, &g_rs485_serial, TASK_SERIAL_RX_PRIO);
+    // 串口接收任务 (处理通用串口数据和RS485协议解析，这里以g_esp32_serial为例)
+    // g_rtos_ops->TaskCreate(App_SerialRxTask, "Serial_Rx", TASK_SERIAL_RX_STK_SIZE, &g_esp32_serial, TASK_SERIAL_RX_PRIO);
 
     // 错误日志处理任务
     g_rtos_ops->TaskCreate(App_ErrorLogTask, "Error_Log", TASK_ERROR_LOG_STK_SIZE, NULL, TASK_ERROR_LOG_PRIO);
@@ -255,44 +255,7 @@ void App_RS485_PollTask(void *pvParameters) {
     }
 }
 
-/**
- * @brief 串口接收任务 (处理RS485协议数据)
- * @param pvParameters 指向 Serial_Device_t 实例 (通常是 g_rs485_serial)
- */
-void App_SerialRxTask(void *pvParameters) {
-    Serial_Device_t *serial_dev = (Serial_Device_t *)pvParameters;
-    if (!serial_dev) {
-        Log_Message(LOG_LEVEL_ERROR, "[Serial Rx] Invalid device parameter. Suspending task.");
-        if (g_rtos_ops && g_rtos_ops->Task_Suspend) g_rtos_ops->Task_Suspend(NULL); else for(;;);
-    }
-    Log_Message(LOG_LEVEL_INFO, "[Serial Rx] Task started for USART %p.", serial_dev->instance);
 
-    Protocol_Data_t received_data; // 用于存储接收到的协议数据
-
-    while (1) {
-        // 从串口中间层接收并解析协议数据，带超时
-        Serial_Status_t status = g_serial_ops.ReceiveProtocolData(serial_dev, &received_data, 100); // 等待100ms
-        if (status == SERIAL_OK) {
-            if (received_data.is_rs485) {
-                // 处理RS485协议数据
-                Log_Message(LOG_LEVEL_INFO, "[RS485 Rx] Frame: Addr1=0x%02X, Cmd=0x%02X, InfoLen=%u",
-                            received_data.rs485_frame.addr1,
-                            received_data.rs485_frame.cmd,
-                            received_data.rs485_frame.info_len);
-                // 可以在这里进一步处理接收到的RS485帧，例如根据命令字进行响应
-            } else {
-                // 处理其他（非RS485）协议数据，如果存在
-                Log_Message(LOG_LEVEL_INFO, "[UART Rx] Non-RS485 data received on USART %p.", serial_dev->instance);
-            }
-        } else if (status == SERIAL_ERR_NO_DATA) {
-            // 没有数据，继续循环
-        } else {
-            // 其他错误，例如 SERIAL_ERR_FRAME_ERR (CRC或帧格式错误)
-            Log_Message(LOG_LEVEL_WARNING, "[Serial Rx] Error receiving protocol data on USART %p. Status: %d.", serial_dev->instance, status);
-        }
-        // 如果上面有数据处理，不需要额外延时，否则可以延时
-    }
-}
 
 /**
  * @brief 错误日志任务

@@ -2,8 +2,8 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-07-22 23:42:51
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-07-24 15:31:39
- * @FilePath: \Demo_Std\Application\tsk_wifi.h
+ * @LastEditTime: 2025-07-26 18:15:25
+ * @FilePath: \Demo_Std_F407\Application\tsk_wifi.h
  * @Description:
  *
  * Copyright (c) 2025 by 23Elapse userszy@163.com, All Rights Reserved.
@@ -12,8 +12,8 @@
 #define __TSK_WIFI_H
 #include "pch.h"
 // 发送周期（单位ms）
-#define REALTIME_DATA_INTERVAL_MS 10000
-#define OFFLINE_DATA_INTERVAL_MS 2000
+#define REALTIME_DATA_INTERVAL_MS 20000
+#define OFFLINE_DATA_INTERVAL_MS 20000
 static uint8_t wifi_send_buf[5000]; // 共享缓冲区
 typedef enum
 {

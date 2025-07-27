@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:52:45
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-07-26 10:54:46
+ * @LastEditTime: 2025-07-26 21:01:51
  * @FilePath: \Demo_Std_F407\Application\api_wifi.h
  * @Description: ESP32 WiFi 和 BLE 模块统一驱动头文件 (Refactored)
  *
@@ -23,7 +23,7 @@
 #define TCP_SERVER_IP   "192.168.2.121"
 #define TCP_PORT        "8080"
 #define UART_TIMEOUT    5000 // 通用串口操作超时
-#define TCP_BUFFER_SIZE 256 // TCP数据缓冲区大小
+#define TCP_BUFFER_SIZE 512  // TCP数据缓冲区大小
 
 #define MAX_FRAME_SIZE     512  // 单帧最大数据长度
 #define CRC16_LEN          4    // CRC16以ASCII十六进制表示，长度固定4字节
@@ -96,8 +96,10 @@ extern ESP32_Device_Info_t g_esp32_info;
  * 用于区分 AT 命令是针对 WiFi 还是 BLE 功能
  */
 typedef enum {
+    ESP32_COMM_TYPE_NULL = 0, // WiFi通信
     ESP32_COMM_TYPE_WIFI,
-    ESP32_COMM_TYPE_BLE
+    ESP32_COMM_TYPE_BLE,
+    ESP32_COMM_TYPE_MAX // 用于边界检查
 } ESP32_Comm_Type_t;
 
 /**

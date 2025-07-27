@@ -2,7 +2,7 @@
  * @Author: 23Elapse userszy@163.com
  * @Date: 2025-04-01 20:50:17
  * @LastEditors: 23Elapse userszy@163.com
- * @LastEditTime: 2025-07-26 17:56:09
+ * @LastEditTime: 2025-07-27 00:55:42
  * @FilePath: \Demo_Std_F407\Application\api_wifi.c
  * @Description: ESP32 WiFi 和 BLE 模块统一驱动实现 (Refactored)
  *
@@ -286,8 +286,8 @@ static AT_Status_t _ESP32_SendATCommand_Internal(ESP32_Shared_Device_t *dev, con
                 local_rx_buffer[rx_len++] = byte;
                 local_rx_buffer[rx_len] = '\0'; // 确保字符串以null结尾
             } else {
-                Log_Message(LOG_LEVEL_WARNING, "[%s AT] Receive buffer full for cmd: %s. Data truncated.",
-                            log_prefix, cmd->description);
+                Log_Message(LOG_LEVEL_WARNING, "[%s AT] Receive buffer full for cmd: %s. Data truncated %s, received: %d.",
+                            log_prefix, cmd->description, local_rx_buffer, byte);
                 // 缓冲区满也尝试继续检查已接收部分是否包含期望响应
             }
 
@@ -488,14 +488,14 @@ static int find_prefix(const uint8_t* data, size_t len, uint8_t* prefix_index)
  * @param type 通信类型 (WiFi/BLE)
  * @return AT_Status_t 操作状态
  */
-AT_Status_t ESP32_AT_ReceiveData(ESP32_Shared_Device_t *dev, uint8_t *buffer, uint16_t *length, uint32_t timeout_ms, ESP32_Comm_Type_t type)
+AT_Status_t ESP32_AT_ReceiveData(ESP32_Shared_Device_t *dev, uint8_t *buffer, uint16_t *length, uint32_t timeout_ms, ESP32_Comm_Type_t *type)
 {
     if (!dev || !dev->serial_dev || !dev->mutex || !buffer || !length || *length == 0) {
         Log_Message(LOG_LEVEL_ERROR, "[AT Recv] Invalid parameters.");
         return AT_ERR_PARAM;
     }
 
-    const char* log_prefix = (type == ESP32_COMM_TYPE_WIFI) ? "WiFi" : "BLE";
+    const char* log_prefix = (*type == ESP32_COMM_TYPE_WIFI) ? "WiFi" : "BLE";
     RingBuffer_t* rb = &dev->serial_dev->rx_buffer;
     const uint16_t max_len = *length;
     *length = 0;
@@ -516,6 +516,7 @@ AT_Status_t ESP32_AT_ReceiveData(ESP32_Shared_Device_t *dev, uint8_t *buffer, ui
             continue;
         }
 
+        Log_Message(LOG_LEVEL_TEST, "[%s Recv] Peeked data: %.*s", log_prefix, (int)available, peek_buf);
         // 查找数据前缀
         uint8_t prefix_index = 0xFF;
         int prefix_pos = find_prefix(peek_buf, available, &prefix_index);
@@ -523,6 +524,13 @@ AT_Status_t ESP32_AT_ReceiveData(ESP32_Shared_Device_t *dev, uint8_t *buffer, ui
             RingBuffer_Drop(rb, available); // 无效数据全部丢弃
             continue;
         }
+
+        if(prefix_index == 0)
+            *type = ESP32_COMM_TYPE_WIFI; // +IPD 前缀表示 WiFi TCP 数据
+        else if(prefix_index == 1)
+            *type = ESP32_COMM_TYPE_BLE; // +BLE 前缀表示 BLE 数据
+        else if(prefix_index == 2)
+            *type = ESP32_COMM_TYPE_BLE; // +WRITE 前缀表示 BLE 写数据
 
         const AT_DataPrefix_t* p = &supported_prefixes[prefix_index];
         if ((size_t)(prefix_pos + p->prefix_len + 2) >= available) {
@@ -551,8 +559,8 @@ AT_Status_t ESP32_AT_ReceiveData(ESP32_Shared_Device_t *dev, uint8_t *buffer, ui
         }
 
         // 计算整个帧长度（含前缀 + 长度字段 + : + 数据 + CRC）
-        size_t total_frame_len = (i + 1 - prefix_pos) + data_len + CRC16_LEN;
-        if (available - prefix_pos < total_frame_len) {
+        size_t total_frame_len = (i + 1 - prefix_pos) + data_len;// + CRC16_LEN;
+        if (available - prefix_pos <= total_frame_len) {
             g_rtos_ops->Delay(2); // 等待后续字节接收
             continue;
         }
@@ -562,7 +570,17 @@ AT_Status_t ESP32_AT_ReceiveData(ESP32_Shared_Device_t *dev, uint8_t *buffer, ui
         RingBuffer_Drop(rb, prefix_pos); // 丢弃前缀前无效部分
         RingBuffer_ReadMulti(rb, frame_buf, total_frame_len);
 
+
         uint8_t* data_ptr = &frame_buf[i + 1 - prefix_pos];
+        uint16_t copy_len = (data_len <= max_len) ? data_len : max_len;
+        memcpy(buffer, data_ptr, copy_len);
+        *length = copy_len;
+        Log_Message(LOG_LEVEL_INFO, "[%s Recv] Frame OK: %u bytes.", log_prefix, copy_len);
+        g_rtos_ops->SemaphoreGive(dev->mutex);
+        return AT_OK;
+
+
+        // uint8_t* data_ptr = &frame_buf[i + 1 - prefix_pos];
         uint8_t* crc_ptr = &data_ptr[data_len];
 
         // 提取CRC字段并验证
